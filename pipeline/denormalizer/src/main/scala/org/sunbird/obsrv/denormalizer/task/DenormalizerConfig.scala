@@ -34,6 +34,7 @@ class DenormalizerConfig(override val config: Config) extends BaseJobConfig[muta
 
   val eventsSkipped = "events-skipped"
   val denormFailed = "denorm-failed"
+  val denormPartialSuccess = "denorm-partial-success"
   val denormSuccess = "denorm-success"
   val denormTotal = "denorm-total"
 

@@ -6,6 +6,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.streaming.{Metrics, MetricsList, WindowBaseProcessFunction}
+import org.sunbird.obsrv.core.util.Util
 import org.sunbird.obsrv.denormalizer.task.DenormalizerConfig
 import org.sunbird.obsrv.denormalizer.util._
 import org.sunbird.obsrv.model.DatasetModels.Dataset
@@ -23,7 +24,7 @@ class DenormalizerWindowFunction(config: DenormalizerConfig)(implicit val eventT
   private[this] var denormCache: DenormCache = _
 
   override def getMetricsList(): MetricsList = {
-    val metrics = List(config.denormSuccess, config.denormTotal, config.denormFailed, config.eventsSkipped)
+    val metrics = List(config.denormSuccess, config.denormTotal, config.denormFailed, config.eventsSkipped, config.denormPartialSuccess)
     MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
   }
 
@@ -61,16 +62,34 @@ class DenormalizerWindowFunction(config: DenormalizerConfig)(implicit val eventT
                           context: ProcessWindowFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef], String, TimeWindow]#Context): Unit = {
 
     val datasetId = dataset.id
-
     val denormEvents = denormCache.denormMultipleEvents(datasetId, events, dataset.denormConfig.get.denormFields)
     denormEvents.foreach(denormEvent => {
-      if (denormEvent.error.isEmpty) {
-        metrics.incCounter(datasetId, config.denormSuccess)
-        context.output(config.denormEventsTag, markSuccess(denormEvent.msg, config.jobName))
-      } else {
-        metrics.incCounter(datasetId, config.denormFailed)
-        context.output(config.denormFailedTag, markFailed(denormEvent.msg, denormEvent.error.get, config.jobName))
+      val status = getDenormStatus(denormEvent)
+      context.output(config.denormEventsTag, markStatus(denormEvent.msg, config.jobName, status))
+      status match {
+        case "success" => metrics.incCounter(datasetId, config.denormSuccess)
+        case "failed" => metrics.incCounter(datasetId, config.denormFailed)
+        case "partial-success" => metrics.incCounter(datasetId, config.denormPartialSuccess)
+        case "skipped" => metrics.incCounter(datasetId, config.eventsSkipped)
       }
     })
+  }
+
+  private def getDenormStatus(denormEvent: DenormEvent): String = {
+    if(denormEvent.fieldStatus.isDefined) {
+      val totalFieldsCount = denormEvent.fieldStatus.get.size
+      val successCount = denormEvent.fieldStatus.get.values.count(f => f.success)
+      if(totalFieldsCount == successCount) "success" else if (successCount > 0) "partial-success" else "failed"
+    } else {
+      "skipped"
+    }
+  }
+
+  private def markStatus(event: mutable.Map[String, AnyRef], jobName: String, status: String): mutable.Map[String, AnyRef] = {
+    val obsrvMeta = Util.getMutableMap(event("obsrv_meta").asInstanceOf[Map[String, AnyRef]])
+    addFlags(obsrvMeta, Map(jobName -> status))
+    addTimespan(obsrvMeta, jobName)
+    event.put("obsrv_meta", obsrvMeta.toMap)
+    event
   }
 }

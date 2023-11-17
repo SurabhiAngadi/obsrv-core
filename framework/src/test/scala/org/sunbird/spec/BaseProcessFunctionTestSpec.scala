@@ -147,7 +147,7 @@ class BaseProcessFunctionTestSpec extends BaseSpec with Matchers {
     ErrorConstants.INVALID_JSON_SCHEMA.errorCode should be ("ERR_PP_1012")
     ErrorConstants.SCHEMA_VALIDATION_FAILED.errorCode should be ("ERR_PP_1013")
     ErrorConstants.DENORM_KEY_MISSING.errorCode should be ("ERR_DENORM_1014")
-    ErrorConstants.DENORM_KEY_NOT_A_STRING.errorCode should be ("ERR_DENORM_1015")
+    ErrorConstants.DENORM_KEY_NOT_A_STRING_OR_NUMBER.errorCode should be ("ERR_DENORM_1015")
 
     val metrics = Metrics(Map("test" -> new ConcurrentHashMap[String, AtomicLong]()))
     metrics.reset("test1", "m1")

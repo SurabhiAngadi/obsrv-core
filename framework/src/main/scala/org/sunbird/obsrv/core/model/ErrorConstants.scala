@@ -27,5 +27,6 @@ object ErrorConstants extends Enumeration {
   val SCHEMA_VALIDATION_FAILED = ErrorInternalValue("ERR_PP_1013", "Event failed the schema validation")
 
   val DENORM_KEY_MISSING = ErrorInternalValue("ERR_DENORM_1014", "No denorm key found or missing data for the specified key")
-  val DENORM_KEY_NOT_A_STRING = ErrorInternalValue("ERR_DENORM_1015", "Denorm key value is not a String or Text")
+  val DENORM_KEY_NOT_A_STRING_OR_NUMBER = ErrorInternalValue("ERR_DENORM_1015", "Denorm key value is not a String or Number")
+  val DENORM_DATA_NOT_FOUND = ErrorInternalValue("ERR_DENORM_1016", "Denorm data not found for the given key")
 }

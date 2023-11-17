@@ -59,15 +59,15 @@ trait JobMetrics {
 }
 
 trait BaseFunction {
-  private def addFlags(obsrvMeta: mutable.Map[String, AnyRef], flags: Map[String, AnyRef]) = {
+  def addFlags(obsrvMeta: mutable.Map[String, AnyRef], flags: Map[String, AnyRef]) = {
     obsrvMeta.put("flags", obsrvMeta("flags").asInstanceOf[Map[String, AnyRef]] ++ flags)
   }
 
-  private def addError(obsrvMeta: mutable.Map[String, AnyRef], error: Map[String, AnyRef]) = {
+  def addError(obsrvMeta: mutable.Map[String, AnyRef], error: Map[String, AnyRef]) = {
     obsrvMeta.put("error", error)
   }
 
-  private def addTimespan(obsrvMeta: mutable.Map[String, AnyRef], jobName: String): Unit = {
+  def addTimespan(obsrvMeta: mutable.Map[String, AnyRef], jobName: String): Unit = {
     val prevTS = if (obsrvMeta.contains("prevProcessingTime")) {
       obsrvMeta("prevProcessingTime").asInstanceOf[Long]
     } else {
