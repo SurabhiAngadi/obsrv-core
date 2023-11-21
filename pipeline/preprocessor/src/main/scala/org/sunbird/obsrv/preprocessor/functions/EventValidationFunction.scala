@@ -11,6 +11,7 @@ import org.sunbird.obsrv.core.model.Models.{PData, SystemEvent}
 import org.sunbird.obsrv.core.streaming.{BaseProcessFunction, Metrics, MetricsList}
 import org.sunbird.obsrv.core.util.JSONUtil
 import org.sunbird.obsrv.model.DatasetModels.Dataset
+import org.sunbird.obsrv.model.DatasetStatus
 import org.sunbird.obsrv.preprocessor.task.PipelinePreprocessorConfig
 import org.sunbird.obsrv.preprocessor.util.SchemaValidator
 import org.sunbird.obsrv.registry.DatasetRegistry
@@ -25,7 +26,8 @@ class EventValidationFunction(config: PipelinePreprocessorConfig,
 
   override def getMetricsList(): MetricsList = {
     val metrics = List(config.validationTotalMetricsCount, config.validationFailureMetricsCount,
-      config.validationSuccessMetricsCount, config.validationSkipMetricsCount, config.eventFailedMetricsCount)
+      config.validationSuccessMetricsCount, config.validationSkipMetricsCount, config.eventFailedMetricsCount,
+      config.eventIgnoredMetricsCount)
     MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
   }
 
@@ -62,6 +64,10 @@ class EventValidationFunction(config: PipelinePreprocessorConfig,
     if (!super.containsEvent(msg)) {
       metrics.incCounter(dataset.id, config.eventFailedMetricsCount)
       context.output(config.failedEventsOutputTag, markFailed(msg, ErrorConstants.EVENT_MISSING, config.jobName))
+      return
+    }
+    if(dataset.status != DatasetStatus.Live) {
+      metrics.incCounter(dataset.id, config.eventIgnoredMetricsCount)
       return
     }
     val validationConfig = dataset.validationConfig

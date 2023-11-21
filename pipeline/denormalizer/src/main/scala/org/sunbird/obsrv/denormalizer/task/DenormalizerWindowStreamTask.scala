@@ -40,8 +40,8 @@ class DenormalizerWindowStreamTask(config: DenormalizerConfig, kafkaConnector: F
 
     denormStream.getSideOutput(config.denormEventsTag).sinkTo(kafkaConnector.kafkaMapSink(config.denormOutputTopic))
       .name(config.DENORM_EVENTS_PRODUCER).uid(config.DENORM_EVENTS_PRODUCER).setParallelism(config.downstreamOperatorsParallelism)
-    denormStream.getSideOutput(config.denormFailedTag).sinkTo(kafkaConnector.kafkaMapSink(config.denormFailedTopic))
-      .name(config.DENORM_FAILED_EVENTS_PRODUCER).uid(config.DENORM_FAILED_EVENTS_PRODUCER).setParallelism(config.downstreamOperatorsParallelism)
+    denormStream.getSideOutput(config.denormFailedStatsTag).sinkTo(kafkaConnector.kafkaMapSink(config.failedStatsTopic))
+      .name(config.DENORM_FAILED_STATS_PRODUCER).uid(config.DENORM_FAILED_STATS_PRODUCER).setParallelism(config.downstreamOperatorsParallelism)
 
     env.execute(config.jobName)
   }

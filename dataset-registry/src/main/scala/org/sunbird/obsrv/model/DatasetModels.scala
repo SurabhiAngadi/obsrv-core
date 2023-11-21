@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.fasterxml.jackson.module.scala.JsonScalaEnumeration
 import org.sunbird.obsrv.core.model.SystemConfig
+import org.sunbird.obsrv.model.DatasetStatus.DatasetStatus
 import org.sunbird.obsrv.model.ValidationMode.ValidationMode
 
 import scala.beans.BeanProperty
@@ -38,7 +39,7 @@ object DatasetModels {
   case class Dataset(@JsonProperty("id") id: String, @JsonProperty("type") datasetType: String , @JsonProperty("extraction_config") extractionConfig: Option[ExtractionConfig],
                      @JsonProperty("dedup_config") dedupConfig: Option[DedupConfig], @JsonProperty("validation_config") validationConfig: Option[ValidationConfig],
                      @JsonProperty("data_schema") jsonSchema: Option[String], @JsonProperty("denorm_config") denormConfig: Option[DenormConfig],
-                     @JsonProperty("router_config") routerConfig: RouterConfig, datasetConfig: DatasetConfig, @JsonProperty("status") status: String,
+                     @JsonProperty("router_config") routerConfig: RouterConfig, datasetConfig: DatasetConfig, @JsonProperty("status") @JsonScalaEnumeration(classOf[DatasetStatusType]) status: DatasetStatus,
                      @JsonProperty("tags") tags: Option[Array[String]] = None, @JsonProperty("data_version") dataVersion: Option[Int] = None)
 
   case class Condition(@JsonProperty("type") `type`: String, @JsonProperty("expr") expr: String)
@@ -68,11 +69,16 @@ object DatasetModels {
   case class DataSource(@JsonProperty("datasource") datasource: String, @JsonProperty("dataset_id") datasetId: String,
                         @JsonProperty("ingestion_spec") ingestionSpec: String, @JsonProperty("datasource_ref") datasourceRef: String)
 
-
 }
 
 class ValidationModeType extends TypeReference[ValidationMode.type]
 object ValidationMode extends Enumeration {
   type ValidationMode = Value
   val Strict, IgnoreNewFields, DiscardNewFields = Value
+}
+
+class DatasetStatusType extends TypeReference[DatasetStatus.type]
+object DatasetStatus extends Enumeration {
+  type DatasetStatus = Value
+  val Draft, Publish, Live, Retired, Purged = Value
 }

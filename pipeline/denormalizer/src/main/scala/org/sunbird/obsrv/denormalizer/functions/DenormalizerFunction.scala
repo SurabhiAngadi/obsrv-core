@@ -3,7 +3,6 @@ package org.sunbird.obsrv.denormalizer.functions
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.slf4j.LoggerFactory
-import org.sunbird.obsrv.core.exception.ObsrvException
 import org.sunbird.obsrv.core.streaming.{BaseProcessFunction, Metrics, MetricsList}
 import org.sunbird.obsrv.core.util.Util
 import org.sunbird.obsrv.denormalizer.task.DenormalizerConfig
@@ -42,7 +41,6 @@ class DenormalizerFunction(config: DenormalizerConfig)
     val datasetId = msg(config.CONST_DATASET).asInstanceOf[String] // DatasetId cannot be empty at this stage
     metrics.incCounter(datasetId, config.denormTotal)
     val dataset = DatasetRegistry.getDataset(datasetId).get
-    val event = Util.getMutableMap(msg(config.CONST_EVENT).asInstanceOf[Map[String, AnyRef]])
 
     if (dataset.denormConfig.isDefined) {
       val event = DenormEvent(msg, None, None)

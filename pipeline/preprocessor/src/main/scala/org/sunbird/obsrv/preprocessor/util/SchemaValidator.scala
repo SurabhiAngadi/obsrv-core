@@ -14,6 +14,10 @@ import org.sunbird.obsrv.preprocessor.task.PipelinePreprocessorConfig
 import java.io.IOException
 import scala.collection.mutable
 
+case class Schema(loadingURI: String, pointer: String)
+case class Instance(pointer: String)
+case class ValidationMsg(level: String, schema: Schema, instance: Instance, domain: String, keyword: String, message: String, allowed: Option[String],
+                         found: Option[String], expected: Option[List[String]], unwanted: Option[List[String]], required: Option[List[String]], missing: Option[List[String]])
 class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serializable {
 
   private val serialVersionUID = 8780940932759659175L
@@ -57,6 +61,14 @@ class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serial
   @throws[ProcessingException]
   def validate(datasetId: String, event: Map[String, AnyRef]): ProcessingReport = {
     schemaMap(datasetId)._1.validate(JSONUtil.convertValue(event))
+  }
+
+  def getValidationMessages(report: ProcessingReport): List[ValidationMsg] = {
+    val buffer = mutable.Buffer[ValidationMsg]()
+    report.forEach(processingMsg => {
+      buffer.append(JSONUtil.deserialize[ValidationMsg](JSONUtil.serialize(processingMsg.asJson())))
+    })
+    buffer.toList
   }
 
   def getInvalidFieldName(errorInfo: String): String = {

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.streaming.BaseDeduplication
 import org.sunbird.obsrv.core.util.{JSONUtil, PostgresConnect, PostgresConnectionConfig}
 import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, ConnectorStats, DataSource, Dataset, DatasetConfig, DatasetSourceConfig, DatasetTransformation, DedupConfig, DenormConfig, ExtractionConfig, RouterConfig, TransformationFunction, ValidationConfig}
+import org.sunbird.obsrv.model.DatasetStatus
 
 import java.io.File
 import java.sql.{ResultSet, Timestamp}
@@ -162,7 +163,7 @@ object DatasetRegistryService {
       if (denormConfig == null) None else Some(JSONUtil.deserialize[DenormConfig](denormConfig)),
       JSONUtil.deserialize[RouterConfig](routerConfig),
       JSONUtil.deserialize[DatasetConfig](datasetConfig),
-      status,
+      DatasetStatus.withName(status),
       Option(tags),
       Option(dataVersion)
     )

@@ -17,20 +17,20 @@ class DenormalizerConfig(override val config: Config) extends BaseJobConfig[muta
   // Kafka Topics Configuration
   val kafkaInputTopic: String = config.getString("kafka.input.topic")
   val denormOutputTopic: String = config.getString("kafka.output.denorm.topic")
-  val denormFailedTopic: String = config.getString("kafka.output.denorm.failed.topic")
+  val failedStatsTopic: String = config.getString("kafka.output.failed.stats.topic")
 
   // Windows
   val windowTime: Int = config.getInt("task.window.time.in.seconds")
   val windowCount: Int = config.getInt("task.window.count")
 
   val DENORM_EVENTS_PRODUCER = "denorm-events-producer"
-  val DENORM_FAILED_EVENTS_PRODUCER = "denorm-failed-events-producer"
+  val DENORM_FAILED_STATS_PRODUCER = "denorm-failed-stats-producer"
 
   private val DENORM_EVENTS = "denorm_events"
-  private val FAILED_EVENTS = "denorm_failed_events"
+  private val FAILED_STATS = "failed_stats"
 
   val denormEventsTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](DENORM_EVENTS)
-  val denormFailedTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](FAILED_EVENTS)
+  val denormFailedStatsTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](FAILED_STATS)
 
   val eventsSkipped = "events-skipped"
   val denormFailed = "denorm-failed"
