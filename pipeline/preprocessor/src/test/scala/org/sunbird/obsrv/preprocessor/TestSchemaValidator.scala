@@ -19,7 +19,7 @@ class TestSchemaValidator extends FlatSpec with Matchers {
   "SchemaValidator" should "return a success report for a valid event" in {
 
     val dataset = Dataset("d1", "dataset", None, None, None, Option(EventFixtures.VALID_SCHEMA), None, RouterConfig(""), DatasetConfig("id","date","ingest"), DatasetStatus.Live)
-    schemaValidator.loadDataSchemas(List(dataset))
+    schemaValidator.loadDataSchema(dataset)
 
     val event = JSONUtil.deserialize[Map[String, AnyRef]](EventFixtures.VALID_SCHEMA_EVENT)
     val report = schemaValidator.validate("d1", event)
@@ -29,7 +29,7 @@ class TestSchemaValidator extends FlatSpec with Matchers {
   it should "return a failed validation report for a invalid event" in {
 
     val dataset = Dataset("d1", "dataset", None, None, None, Option(EventFixtures.VALID_SCHEMA), None, RouterConfig(""), DatasetConfig("id","date","ingest"), DatasetStatus.Live)
-    schemaValidator.loadDataSchemas(List(dataset))
+    schemaValidator.loadDataSchema(dataset)
 
     val event1 = JSONUtil.deserialize[Map[String, AnyRef]](EventFixtures.INVALID_SCHEMA_EVENT)
     val report1 = schemaValidator.validate("d1", event1)
@@ -78,7 +78,7 @@ class TestSchemaValidator extends FlatSpec with Matchers {
 
   it should "validate the negative scenarios" in {
     val dataset = Dataset("d1", "dataset", None, None, None, Option(EventFixtures.INVALID_SCHEMA), None, RouterConfig(""), DatasetConfig("id","date","ingest"), DatasetStatus.Live)
-    schemaValidator.loadDataSchemas(List(dataset))
+    schemaValidator.loadDataSchema(dataset)
 
     val dataset2 = Dataset("d1", "dataset", None, None, None, None, None, RouterConfig(""), DatasetConfig("id","date","ingest"), DatasetStatus.Live)
     an[ObsrvException] should be thrownBy schemaValidator.schemaFileExists(dataset2)

@@ -41,7 +41,7 @@ class DenormalizerFunction(config: DenormalizerConfig)
     val datasetId = msg(config.CONST_DATASET).asInstanceOf[String] // DatasetId cannot be empty at this stage
     metrics.incCounter(datasetId, config.denormTotal)
     val dataset = DatasetRegistry.getDataset(datasetId).get
-
+    denormCache.open(dataset)
     if (dataset.denormConfig.isDefined) {
       val event = DenormEvent(msg, None, None)
       val denormEvent = denormCache.denormEvent(datasetId, event, dataset.denormConfig.get.denormFields)

@@ -18,8 +18,7 @@ import org.sunbird.obsrv.registry.DatasetRegistry
 
 import scala.collection.mutable
 
-class EventValidationFunction(config: PipelinePreprocessorConfig,
-                              @transient var schemaValidator: SchemaValidator = null)
+class EventValidationFunction(config: PipelinePreprocessorConfig, @transient var schemaValidator: SchemaValidator = null)
                              (implicit val eventTypeInfo: TypeInformation[mutable.Map[String, AnyRef]])
   extends BaseProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]](config) {
   private[this] val logger = LoggerFactory.getLogger(classOf[EventValidationFunction])
@@ -72,6 +71,7 @@ class EventValidationFunction(config: PipelinePreprocessorConfig,
     }
     val validationConfig = dataset.validationConfig
     if (validationConfig.isDefined && validationConfig.get.validate.get) {
+      schemaValidator.loadDataSchema(dataset)
       validateEvent(dataset, msg, context, metrics)
     } else {
       metrics.incCounter(dataset.id, config.validationSkipMetricsCount)
@@ -111,7 +111,6 @@ class EventValidationFunction(config: PipelinePreprocessorConfig,
   private def onValidationFailure(dataset: Dataset, event: mutable.Map[String, AnyRef], metrics: Metrics,
                                   context: ProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]]#Context,
                                   validationReport: ProcessingReport): Unit = {
-    val failedErrorMsg = schemaValidator.getInvalidFieldName(validationReport.toString)
     var errorReasons: Array[Any] = Array()
 
     validationReport.forEach(failure => {
@@ -142,7 +141,7 @@ class EventValidationFunction(config: PipelinePreprocessorConfig,
 
     metrics.incCounter(dataset.id, config.validationFailureMetricsCount)
     context.output(config.invalidEventsOutputTag, markFailed(event, ErrorConstants.SCHEMA_VALIDATION_FAILED.copy(errorReason = Some(JSONUtil.serialize(errorReasons))), "EventValidation"))
-    val systemEvent = SystemEvent(PData(config.jobName, "flink", "validation"), Map(Constants.ERROR_CODE -> ErrorConstants.SCHEMA_VALIDATION_FAILED.errorCode, Constants.ERROR_MSG -> failedErrorMsg, Constants.ERROR_REASON -> JSONUtil.serialize(errorReasons)))
+    val systemEvent = SystemEvent(PData(config.jobName, "flink", "validation"), Map(Constants.ERROR_CODE -> ErrorConstants.SCHEMA_VALIDATION_FAILED.errorCode, Constants.ERROR_MSG -> "Validation Failure", Constants.ERROR_REASON -> JSONUtil.serialize(errorReasons)))
     context.output(config.systemEventsOutputTag, JSONUtil.serialize(systemEvent))
   }
 

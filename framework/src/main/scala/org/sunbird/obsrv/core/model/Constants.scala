@@ -11,5 +11,7 @@ object Constants {
   val FAILED = "failed"
   val ERROR = "error"
   val LEVEL = "level"
+  val TOPIC = "topic"
+  val MESSAGE = "message"
 
 }

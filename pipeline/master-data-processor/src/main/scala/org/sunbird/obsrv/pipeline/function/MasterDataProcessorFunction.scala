@@ -51,6 +51,7 @@ class MasterDataProcessorFunction(config: MasterDataProcessorConfig) extends Win
     val eventsList = elements.asScala.toList
     metrics.incCounter(datasetId, config.totalEventCount, eventsList.size.toLong)
     val dataset = DatasetRegistry.getDataset(datasetId).get
+    masterDataCache.open(dataset)
     val eventsMap = eventsList.map(msg => {
       val json = parse(JSONUtil.serialize(msg(config.CONST_EVENT)), useBigIntForLong = false)
       val key = json.customExtract[String](dataset.datasetConfig.key)

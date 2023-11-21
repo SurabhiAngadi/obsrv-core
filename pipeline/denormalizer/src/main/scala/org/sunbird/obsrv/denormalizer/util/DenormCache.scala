@@ -35,6 +35,15 @@ class DenormCache(val config: DenormalizerConfig) {
     })
   }
 
+  def open(dataset: Dataset): Unit = {
+    if (!datasetPipelineMap.contains(dataset.id) && dataset.denormConfig.isDefined) {
+      val denormConfig = dataset.denormConfig.get
+      val redisConnect = new RedisConnect(denormConfig.redisDBHost, denormConfig.redisDBPort, config.redisConnectionTimeout)
+      val pipeline: Pipeline = redisConnect.getConnection(0).pipelined()
+      datasetPipelineMap.put(dataset.id, pipeline)
+    }
+  }
+
   private def processDenorm(denormEvent: DenormEvent, pipeline: Pipeline, denormFieldConfigs: List[DenormFieldConfig]): Unit = {
 
     val responses: mutable.Map[String, Response[String]] = mutable.Map[String, Response[String]]()
@@ -75,12 +84,12 @@ class DenormCache(val config: DenormalizerConfig) {
   private def extractField(fieldConfig: DenormFieldConfig, eventStr: String): DenormFieldStatus = {
     val denormFieldNode = JSONUtil.getKey(fieldConfig.denormKey, eventStr)
     if (denormFieldNode.isMissingNode) {
-      DenormFieldStatus("", false, Some(ErrorConstants.DENORM_KEY_MISSING))
+      DenormFieldStatus("", success = false, Some(ErrorConstants.DENORM_KEY_MISSING))
     } else {
       if (denormFieldNode.isTextual || denormFieldNode.isNumber) {
-        DenormFieldStatus(denormFieldNode.asText(), false, None)
+        DenormFieldStatus(denormFieldNode.asText(), success = false, None)
       } else {
-        DenormFieldStatus("", false, Some(ErrorConstants.DENORM_KEY_NOT_A_STRING_OR_NUMBER))
+        DenormFieldStatus("", success = false, Some(ErrorConstants.DENORM_KEY_NOT_A_STRING_OR_NUMBER))
       }
     }
   }
@@ -96,10 +105,10 @@ class DenormCache(val config: DenormalizerConfig) {
       val event = Util.getMutableMap(denormEvent.msg(config.CONST_EVENT).asInstanceOf[Map[String, AnyRef]])
       denormEvent.responses.get.map(_ => (denormField: String, response: Response[String]) => {
         if (response.get() != null) {
-          denormEvent.fieldStatus.get.get(denormField).get.success = true
+          denormEvent.fieldStatus.get(denormField).success = true
           event.put(denormField, JSONUtil.deserialize[Map[String, AnyRef]](response.get()))
         } else {
-          denormEvent.fieldStatus.get.get(denormField).get.error = Some(ErrorConstants.DENORM_DATA_NOT_FOUND)
+          denormEvent.fieldStatus.get(denormField).error = Some(ErrorConstants.DENORM_DATA_NOT_FOUND)
         }
       })
       denormEvent.msg.put(config.CONST_EVENT, event.toMap)

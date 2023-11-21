@@ -65,4 +65,12 @@ class FlinkKafkaConnector(config: BaseJobConfig[_]) extends Serializable {
       .build()
   }
 
+  def kafkaMapDynamicSink(): KafkaSink[mutable.Map[String, AnyRef]] = {
+    KafkaSink.builder[mutable.Map[String, AnyRef]]()
+      .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+      .setRecordSerializer(new DynamicMapSerializationSchema())
+      .setKafkaProducerConfig(config.kafkaProducerProperties)
+      .build()
+  }
+
 }

@@ -28,8 +28,8 @@ object DatasetRegistry {
     datasetSourceConfig.map(configList => configList.filter(_.datasetId.equalsIgnoreCase(datasetId))).get.head
   }
 
-  def getDatasetTransformations(id: String): Option[List[DatasetTransformation]] = {
-    datasetTransformations.get(id)
+  def getDatasetTransformations(datasetId: String): Option[List[DatasetTransformation]] = {
+    datasetTransformations.get(datasetId)
   }
 
   def getDatasources(datasetId: String): Option[List[DataSource]] = {

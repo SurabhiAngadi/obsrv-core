@@ -22,6 +22,7 @@ class DruidRouterConfig(override val config: Config) extends BaseJobConfig[mutab
   val routerSuccessCount = "router-success-count"
 
   val statsOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]]("processing_stats")
+  val routerOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]]("druid-routing-output")
   
   // Functions
   val druidRouterFunction = "DruidRouterFunction"

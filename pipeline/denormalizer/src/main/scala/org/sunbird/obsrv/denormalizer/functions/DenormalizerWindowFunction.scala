@@ -44,6 +44,7 @@ class DenormalizerWindowFunction(config: DenormalizerConfig)(implicit val eventT
     val eventsList = elements.asScala.toList
     metrics.incCounter(datasetId, config.denormTotal, eventsList.size.toLong)
     val dataset = DatasetRegistry.getDataset(datasetId).get
+    denormCache.open(dataset)
     val denormEvents = eventsList.map(msg => {
       DenormEvent(msg, None, None)
     })

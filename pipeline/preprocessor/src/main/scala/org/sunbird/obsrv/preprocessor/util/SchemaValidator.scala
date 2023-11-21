@@ -18,6 +18,7 @@ case class Schema(loadingURI: String, pointer: String)
 case class Instance(pointer: String)
 case class ValidationMsg(level: String, schema: Schema, instance: Instance, domain: String, keyword: String, message: String, allowed: Option[String],
                          found: Option[String], expected: Option[List[String]], unwanted: Option[List[String]], required: Option[List[String]], missing: Option[List[String]])
+
 class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serializable {
 
   private val serialVersionUID = 8780940932759659175L
@@ -26,7 +27,7 @@ class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serial
 
   def loadDataSchemas(datasets: List[Dataset]) = {
     datasets.foreach(dataset => {
-      if(dataset.jsonSchema.isDefined) {
+      if (dataset.jsonSchema.isDefined) {
         try {
           loadJsonSchema(dataset.id, dataset.jsonSchema.get)
         } catch {
@@ -35,6 +36,16 @@ class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serial
         }
       }
     })
+  }
+
+  def loadDataSchema(dataset: Dataset) = {
+    if (!schemaMap.contains(dataset.id) && dataset.jsonSchema.isDefined) {
+      try {
+        loadJsonSchema(dataset.id, dataset.jsonSchema.get)
+      } catch {
+        case ex: ObsrvException => schemaMap.put(dataset.id, (null, false)) // TODO: Invalid schema file. Does this scenario occur?
+      }
+    }
   }
 
   private def loadJsonSchema(datasetId: String, jsonSchemaStr: String) = {
@@ -71,20 +82,6 @@ class SchemaValidator(config: PipelinePreprocessorConfig) extends java.io.Serial
     buffer.toList
   }
 
-  def getInvalidFieldName(errorInfo: String): String = {
-    val message = errorInfo.split("reports:")
-    val defaultValidationErrMsg = "Unable to obtain field name for failed validation"
-    if (message.length > 1) {
-      val fields = message(1).split(",")
-      if (fields.length > 2) {
-        val pointer = fields(3).split("\"pointer\":")
-        pointer(1).substring(0, pointer(1).length - 1)
-      } else {
-        defaultValidationErrMsg
-      }
-    } else {
-      defaultValidationErrMsg
-    }
-  }
+
 }
 // $COVERAGE-ON$

@@ -67,3 +67,16 @@ class MapSerializationSchema(topic: String, key: Option[String] = None) extends 
     }.getOrElse(new ProducerRecord[Array[Byte], Array[Byte]](topic, out.getBytes(StandardCharsets.UTF_8)))
   }
 }
+
+class DynamicMapSerializationSchema(key: Option[String] = None) extends KafkaRecordSerializationSchema[mutable.Map[String, AnyRef]] {
+
+  private val serialVersionUID = -4284080856874185929L
+
+  override def serialize(element: mutable.Map[String, AnyRef], context: KafkaRecordSerializationSchema.KafkaSinkContext, timestamp: java.lang.Long): ProducerRecord[Array[Byte], Array[Byte]] = {
+    val out = JSONUtil.serialize(element.get(Constants.MESSAGE))
+    val topic = element.get(Constants.TOPIC).get.asInstanceOf[String]
+    key.map { kafkaKey =>
+      new ProducerRecord[Array[Byte], Array[Byte]](topic, kafkaKey.getBytes(StandardCharsets.UTF_8), out.getBytes(StandardCharsets.UTF_8))
+    }.getOrElse(new ProducerRecord[Array[Byte], Array[Byte]](topic, out.getBytes(StandardCharsets.UTF_8)))
+  }
+}

@@ -28,6 +28,15 @@ class MasterDataCache(val config: MasterDataProcessorConfig) {
     })
   }
 
+  def open(dataset: Dataset): Unit = {
+    if (!datasetPipelineMap.contains(dataset.id)) {
+      val datasetConfig = dataset.datasetConfig
+      val redisConnect = new RedisConnect(datasetConfig.redisDBHost.get, datasetConfig.redisDBPort.get, config.redisConnectionTimeout)
+      val pipeline: Pipeline = redisConnect.getConnection(0).pipelined()
+      datasetPipelineMap.put(dataset.id, pipeline)
+    }
+  }
+
   def process(dataset: Dataset, eventMap: Map[String, JValue]): (Int, Int) = {
     val pipeline = this.datasetPipelineMap(dataset.id)
     val dataFromCache = getDataFromCache(dataset, eventMap.keySet, pipeline)
@@ -48,7 +57,7 @@ class MasterDataCache(val config: MasterDataProcessorConfig) {
     responses.map(f => (f._1, f._2.get()))
   }
 
-  private def updateCache(dataset: Dataset, dataFromCache: mutable.Map[String, String], eventMap: Map[String, JValue], pipeline: Pipeline ): Unit = {
+  private def updateCache(dataset: Dataset, dataFromCache: mutable.Map[String, String], eventMap: Map[String, JValue], pipeline: Pipeline): Unit = {
     pipeline.clear()
     pipeline.select(dataset.datasetConfig.redisDB.get)
     eventMap.foreach(f => {
