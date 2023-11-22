@@ -109,7 +109,6 @@ object DatasetRegistryService {
     } catch {
       case ex: Exception =>
         logger.error("Exception while reading dataset transformations from Postgres", ex)
-        Map()
     } finally {
       postgresConnect.closeConnection()
     }
