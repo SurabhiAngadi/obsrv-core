@@ -6,10 +6,9 @@ import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.apache.flink.streaming.api.scala.OutputTag
 import org.sunbird.obsrv.core.streaming.{BaseStreamTask, FlinkKafkaConnector}
 import org.sunbird.obsrv.core.util.FlinkUtil
-import org.sunbird.obsrv.router.functions.{DynamicRouterFunction}
+import org.sunbird.obsrv.router.functions.DynamicRouterFunction
 
 import java.io.File
 import scala.collection.mutable
@@ -40,9 +39,10 @@ class DynamicRouterStreamTask(config: DruidRouterConfig, kafkaConnector: FlinkKa
 
     routerStream.getSideOutput(config.routerOutputTag).sinkTo(kafkaConnector.kafkaMapDynamicSink())
       .name(config.druidRouterProducer).uid(config.druidRouterProducer).setParallelism(config.downstreamOperatorsParallelism)
-    routerStream.getSideOutput(config.statsOutputTag).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaStatsTopic))
+    routerStream.getSideOutput(config.statsOutputTag).sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaStatsTopic))
       .name(config.processingStatsProducer).uid(config.processingStatsProducer).setParallelism(config.downstreamOperatorsParallelism)
 
+    addDefaultSinks(routerStream, config, kafkaConnector)
     routerStream.getSideOutput(config.successTag())
   }
 }

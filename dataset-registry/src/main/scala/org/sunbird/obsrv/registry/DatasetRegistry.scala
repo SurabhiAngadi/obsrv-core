@@ -13,7 +13,8 @@ object DatasetRegistry {
   private val datasources: Map[String, List[DataSource]] = DatasetRegistryService.readAllDatasources()
 
   def getAllDatasets(datasetType: String): List[Dataset] = {
-    datasets.filter(f => f._2.datasetType.equals(datasetType)).values.toList
+    val datasetList = DatasetRegistryService.readAllDatasets()
+    datasetList.filter(f => f._2.datasetType.equals(datasetType)).values.toList
   }
 
   def getDataset(id: String): Option[Dataset] = {
@@ -21,7 +22,7 @@ object DatasetRegistry {
   }
 
   def getDatasetSourceConfig(): Option[List[DatasetSourceConfig]] = {
-    datasetSourceConfig
+    DatasetRegistryService.readAllDatasetSourceConfig()
   }
 
   def getDatasetSourceConfigById(datasetId: String): DatasetSourceConfig = {

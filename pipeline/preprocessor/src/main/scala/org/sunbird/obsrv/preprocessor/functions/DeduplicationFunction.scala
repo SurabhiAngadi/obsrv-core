@@ -8,24 +8,20 @@ import org.sunbird.obsrv.core.cache._
 import org.sunbird.obsrv.core.model.ErrorConstants
 import org.sunbird.obsrv.core.streaming._
 import org.sunbird.obsrv.core.util.JSONUtil
+import org.sunbird.obsrv.model.DatasetModels.Dataset
 import org.sunbird.obsrv.preprocessor.task.PipelinePreprocessorConfig
-import org.sunbird.obsrv.registry.DatasetRegistry
+import org.sunbird.obsrv.streaming.BaseDatasetProcessFunction
 
 import scala.collection.mutable
 
-class DeduplicationFunction(config: PipelinePreprocessorConfig)
-                           (implicit val eventTypeInfo: TypeInformation[mutable.Map[String, AnyRef]])
-  extends BaseProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]](config) {
+class DeduplicationFunction(config: PipelinePreprocessorConfig)(implicit val eventTypeInfo: TypeInformation[mutable.Map[String, AnyRef]])
+  extends BaseDatasetProcessFunction(config) {
 
   @transient private var dedupEngine: DedupEngine = null
   private[this] val logger = LoggerFactory.getLogger(classOf[DeduplicationFunction])
 
-  override def getMetricsList(): MetricsList = {
-    val metrics = List(
-      config.duplicationTotalMetricsCount, config.duplicationSkippedEventMetricsCount, config.duplicationEventMetricsCount,
-      config.duplicationProcessedEventMetricsCount, config.eventFailedMetricsCount
-    )
-    MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
+  override def getMetrics(): List[String] = {
+    List(config.duplicationTotalMetricsCount, config.duplicationSkippedEventMetricsCount, config.duplicationEventMetricsCount, config.duplicationProcessedEventMetricsCount)
   }
 
   override def open(parameters: Configuration): Unit = {
@@ -39,14 +35,11 @@ class DeduplicationFunction(config: PipelinePreprocessorConfig)
     dedupEngine.closeConnectionPool()
   }
 
-  override def processElement(msg: mutable.Map[String, AnyRef],
+  override def processElement(dataset: Dataset, msg: mutable.Map[String, AnyRef],
                               context: ProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]]#Context,
                               metrics: Metrics): Unit = {
     try {
       metrics.incCounter(config.defaultDatasetID, config.duplicationTotalMetricsCount)
-      val datasetId = msg.get(config.CONST_DATASET)
-      val datasetOpt = DatasetRegistry.getDataset(datasetId.get.asInstanceOf[String])
-      val dataset = datasetOpt.get
       val dedupConfig = dataset.dedupConfig
       if (dedupConfig.isDefined && dedupConfig.get.dropDuplicates.get) {
         val event = msg(config.CONST_EVENT).asInstanceOf[Map[String, AnyRef]]

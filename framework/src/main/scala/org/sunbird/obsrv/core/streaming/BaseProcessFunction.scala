@@ -18,11 +18,19 @@ import scala.collection.mutable
 
 case class MetricsList(datasets: List[String], metrics: List[String])
 
-case class Metrics(metrics: Map[String, ConcurrentHashMap[String, AtomicLong]]) {
+case class Metrics(metrics: mutable.Map[String, ConcurrentHashMap[String, AtomicLong]]) {
 
   private def getMetric(dataset: String, metric: String): AtomicLong = {
     val datasetMetrics: ConcurrentHashMap[String, AtomicLong] = metrics.getOrElse(dataset, new ConcurrentHashMap[String, AtomicLong]())
     datasetMetrics.getOrDefault(metric, new AtomicLong())
+  }
+
+  def hasDataset(dataset: String): Boolean = {
+    metrics.contains(dataset)
+  }
+
+  def initDataset(dataset: String, counters: ConcurrentHashMap[String, AtomicLong]): Unit = {
+    metrics.put(dataset, counters)
   }
 
   def incCounter(dataset: String, metric: String): Unit = {
@@ -53,17 +61,19 @@ trait JobMetrics {
       metrics.foreach { metric => metricMap.put(metric, new AtomicLong(0L)) }
       (dataset, metricMap)
     }).toMap
+    val mutableMap = mutable.Map[String, ConcurrentHashMap[String, AtomicLong]]()
+    mutableMap ++= datasetMetricMap
 
-    Metrics(datasetMetricMap)
+    Metrics(mutableMap)
   }
 }
 
 trait BaseFunction {
-  def addFlags(obsrvMeta: mutable.Map[String, AnyRef], flags: Map[String, AnyRef]) = {
+  def addFlags(obsrvMeta: mutable.Map[String, AnyRef], flags: Map[String, AnyRef]): Option[AnyRef] = {
     obsrvMeta.put("flags", obsrvMeta("flags").asInstanceOf[Map[String, AnyRef]] ++ flags)
   }
 
-  def addError(obsrvMeta: mutable.Map[String, AnyRef], error: Map[String, AnyRef]) = {
+  def addError(obsrvMeta: mutable.Map[String, AnyRef], error: Map[String, AnyRef]): Option[AnyRef] = {
     obsrvMeta.put("error", error)
   }
 
@@ -128,8 +138,8 @@ trait BaseFunction {
 abstract class BaseProcessFunction[T, R](config: BaseJobConfig[R]) extends ProcessFunction[T, R] with BaseDeduplication with JobMetrics with BaseFunction {
 
   private[this] val logger = LoggerFactory.getLogger(this.getClass)
-  private val metricsList = getMetricsList()
-  private val metrics: Metrics = registerMetrics(metricsList.datasets, metricsList.metrics)
+  protected val metricsList: MetricsList = getMetricsList()
+  protected val metrics: Metrics = registerMetrics(metricsList.datasets, metricsList.metrics)
 
   override def open(parameters: Configuration): Unit = {
     (metricsList.datasets ++ List(SystemConfig.defaultDatasetId)).map { dataset =>
@@ -158,8 +168,8 @@ abstract class BaseProcessFunction[T, R](config: BaseJobConfig[R]) extends Proce
 abstract class WindowBaseProcessFunction[I, O, K](config: BaseJobConfig[O]) extends ProcessWindowFunction[I, O, K, TimeWindow] with BaseDeduplication with JobMetrics with BaseFunction {
 
   private[this] val logger = LoggerFactory.getLogger(this.getClass)
-  private val metricsList = getMetricsList()
-  private val metrics: Metrics = registerMetrics(metricsList.datasets, metricsList.metrics)
+  protected val metricsList: MetricsList = getMetricsList()
+  protected val metrics: Metrics = registerMetrics(metricsList.datasets, metricsList.metrics)
 
   override def open(parameters: Configuration): Unit = {
     (metricsList.datasets ++ List(SystemConfig.defaultDatasetId)).map { dataset =>

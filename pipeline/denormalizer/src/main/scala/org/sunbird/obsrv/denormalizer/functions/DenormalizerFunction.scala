@@ -3,24 +3,24 @@ package org.sunbird.obsrv.denormalizer.functions
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.slf4j.LoggerFactory
-import org.sunbird.obsrv.core.streaming.{BaseProcessFunction, Metrics, MetricsList}
+import org.sunbird.obsrv.core.streaming.Metrics
 import org.sunbird.obsrv.core.util.Util
 import org.sunbird.obsrv.denormalizer.task.DenormalizerConfig
 import org.sunbird.obsrv.denormalizer.util.{DenormCache, DenormEvent}
+import org.sunbird.obsrv.model.DatasetModels.Dataset
 import org.sunbird.obsrv.registry.DatasetRegistry
+import org.sunbird.obsrv.streaming.BaseDatasetProcessFunction
 
 import scala.collection.mutable
 
-class DenormalizerFunction(config: DenormalizerConfig)
-  extends BaseProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]](config) {
+class DenormalizerFunction(config: DenormalizerConfig) extends BaseDatasetProcessFunction(config) {
 
   private[this] val logger = LoggerFactory.getLogger(classOf[DenormalizerFunction])
 
   private[this] var denormCache: DenormCache = _
 
-  override def getMetricsList(): MetricsList = {
-    val metrics = List(config.denormSuccess, config.denormTotal, config.denormFailed, config.eventsSkipped)
-    MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
+  override def getMetrics(): List[String] = {
+    List(config.denormSuccess, config.denormTotal, config.denormFailed, config.eventsSkipped)
   }
 
   override def open(parameters: Configuration): Unit = {
@@ -34,27 +34,25 @@ class DenormalizerFunction(config: DenormalizerConfig)
     denormCache.close()
   }
 
-  override def processElement(msg: mutable.Map[String, AnyRef],
+  override def processElement(dataset: Dataset, msg: mutable.Map[String, AnyRef],
                               context: ProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]]#Context,
                               metrics: Metrics): Unit = {
 
-    val datasetId = msg(config.CONST_DATASET).asInstanceOf[String] // DatasetId cannot be empty at this stage
-    metrics.incCounter(datasetId, config.denormTotal)
-    val dataset = DatasetRegistry.getDataset(datasetId).get
+    metrics.incCounter(dataset.id, config.denormTotal)
     denormCache.open(dataset)
     if (dataset.denormConfig.isDefined) {
       val event = DenormEvent(msg, None, None)
-      val denormEvent = denormCache.denormEvent(datasetId, event, dataset.denormConfig.get.denormFields)
+      val denormEvent = denormCache.denormEvent(dataset.id, event, dataset.denormConfig.get.denormFields)
       val status = getDenormStatus(denormEvent)
       context.output(config.denormEventsTag, markStatus(denormEvent.msg, config.jobName, status))
       status match {
-        case "success" => metrics.incCounter(datasetId, config.denormSuccess)
-        case "failed" => metrics.incCounter(datasetId, config.denormFailed)
-        case "partial-success" => metrics.incCounter(datasetId, config.denormPartialSuccess)
-        case "skipped" => metrics.incCounter(datasetId, config.eventsSkipped)
+        case "success" => metrics.incCounter(dataset.id, config.denormSuccess)
+        case "failed" => metrics.incCounter(dataset.id, config.denormFailed)
+        case "partial-success" => metrics.incCounter(dataset.id, config.denormPartialSuccess)
+        case "skipped" => metrics.incCounter(dataset.id, config.eventsSkipped)
       }
     } else {
-      metrics.incCounter(datasetId, config.eventsSkipped)
+      metrics.incCounter(dataset.id, config.eventsSkipped)
       context.output(config.denormEventsTag, markSkipped(msg, config.jobName))
     }
   }

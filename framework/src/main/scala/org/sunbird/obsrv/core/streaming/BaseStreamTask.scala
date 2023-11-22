@@ -2,7 +2,8 @@ package org.sunbird.obsrv.core.streaming
 
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy
-import org.apache.flink.streaming.api.datastream.DataStream
+import org.apache.flink.api.connector.sink2.Sink
+import org.apache.flink.streaming.api.datastream.{DataStream, DataStreamSink, SingleOutputStreamOperator}
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 import java.util.Properties
@@ -13,6 +14,11 @@ abstract class BaseStreamTask[T] {
   def process()
 
   def processStream(dataStream: DataStream[T]): DataStream[T]
+
+  def addDefaultSinks(dataStream: SingleOutputStreamOperator[T], config: BaseJobConfig[T], kafkaConnector: FlinkKafkaConnector): DataStreamSink[T] = {
+    dataStream.getSideOutput(config.failedEventsOutputTag()).sinkTo(kafkaConnector.kafkaSink[T](config.kafkaFailedTopic))
+      .name(config.failedEventProducer).uid(config.failedEventProducer).setParallelism(config.downstreamOperatorsParallelism)
+  }
 
   def getMapDataStream(env: StreamExecutionEnvironment, config: BaseJobConfig[T], kafkaConnector: FlinkKafkaConnector): DataStream[mutable.Map[String, AnyRef]] = {
     env.fromSource(kafkaConnector.kafkaMapSource(config.inputTopic()), WatermarkStrategy.noWatermarks[mutable.Map[String, AnyRef]](), config.inputConsumer())

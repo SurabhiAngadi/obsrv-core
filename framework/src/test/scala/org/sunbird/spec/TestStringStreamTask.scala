@@ -20,7 +20,7 @@ class TestStringStreamTask(config: BaseProcessTestConfig, kafkaConnector: FlinkK
   override def processStream(dataStream: DataStream[String]): DataStream[String] = {
     val stream = dataStream.process(new TestStringStreamFunc(config)).name("TestStringEventStream")
     stream.getSideOutput(config.stringOutputTag)
-      .sinkTo(kafkaConnector.kafkaStringSink(config.kafkaStringOutputTopic))
+      .sinkTo(kafkaConnector.kafkaSink[String](config.kafkaStringOutputTopic))
       .name("String-Event-Producer")
 
     stream.getSideOutput(config.stringOutputTag)

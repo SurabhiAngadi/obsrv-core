@@ -19,7 +19,7 @@ class TestMapStreamTask(config: BaseProcessTestMapConfig, kafkaConnector: FlinkK
   override def processStream(dataStream: DataStream[mutable.Map[String, AnyRef]]): DataStream[mutable.Map[String, AnyRef]] = {
     val stream = dataStream.process(new TestMapStreamFunc(config))
     stream.getSideOutput(config.mapOutputTag)
-      .sinkTo(kafkaConnector.kafkaMapSink(config.kafkaMapOutputTopic))
+      .sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaMapOutputTopic))
       .name("Map-Event-Producer")
 
     stream.getSideOutput(config.mapOutputTag)

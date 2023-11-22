@@ -42,14 +42,15 @@ class DruidRouterStreamTask(config: DruidRouterConfig, kafkaConnector: FlinkKafk
       .setParallelism(config.downstreamOperatorsParallelism)
     datasets.map(dataset => {
       routerStream.getSideOutput(OutputTag[mutable.Map[String, AnyRef]](dataset.routerConfig.topic))
-        .sinkTo(kafkaConnector.kafkaMapSink(dataset.routerConfig.topic))
+        .sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](dataset.routerConfig.topic))
         .name(dataset.id + "-" + config.druidRouterProducer).uid(dataset.id + "-" + config.druidRouterProducer)
         .setParallelism(config.downstreamOperatorsParallelism)
     })
 
-    routerStream.getSideOutput(config.statsOutputTag).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaStatsTopic))
+    routerStream.getSideOutput(config.statsOutputTag).sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaStatsTopic))
       .name(config.processingStatsProducer).uid(config.processingStatsProducer).setParallelism(config.downstreamOperatorsParallelism)
 
+    addDefaultSinks(routerStream, config, kafkaConnector)
     routerStream.getSideOutput(config.successTag())
 
   }

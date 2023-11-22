@@ -3,18 +3,18 @@ package org.sunbird.obsrv.extractor.functions
 import org.apache.commons.lang3.StringUtils
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.ProcessFunction
+import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.cache.{DedupEngine, RedisConnect}
 import org.sunbird.obsrv.core.exception.ObsrvException
-import org.sunbird.obsrv.core.model.{Constants, ErrorConstants, SystemConfig}
 import org.sunbird.obsrv.core.model.ErrorConstants.Error
 import org.sunbird.obsrv.core.model.Models.{PData, SystemEvent}
+import org.sunbird.obsrv.core.model.{Constants, ErrorConstants, SystemConfig}
 import org.sunbird.obsrv.core.streaming.{BaseProcessFunction, Metrics, MetricsList}
 import org.sunbird.obsrv.core.util.Util.getMutableMap
 import org.sunbird.obsrv.core.util.{JSONUtil, Util}
 import org.sunbird.obsrv.extractor.task.ExtractorConfig
 import org.sunbird.obsrv.model.DatasetModels.Dataset
 import org.sunbird.obsrv.registry.DatasetRegistry
-import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 
@@ -24,7 +24,7 @@ class ExtractionFunction(config: ExtractorConfig, @transient var dedupEngine: De
   private[this] val logger = LoggerFactory.getLogger(classOf[ExtractionFunction])
 
   override def getMetricsList(): MetricsList = {
-    val metrics = List(config.successEventCount, config.systemEventCount, config.failedEventCount, config.failedExtractionCount,
+    val metrics = List(config.successEventCount, config.systemEventCount, config.eventFailedMetricsCount, config.failedExtractionCount,
       config.skippedExtractionCount, config.duplicateExtractionCount, config.totalEventCount, config.successExtractionCount)
     MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
   }
@@ -43,8 +43,8 @@ class ExtractionFunction(config: ExtractorConfig, @transient var dedupEngine: De
     metrics.incCounter(config.defaultDatasetID, config.totalEventCount)
     val eventAsText = JSONUtil.serialize(batchEvent)
     if (eventAsText.contains(ErrorConstants.ERR_INVALID_EVENT.errorCode)) {
-      context.output(config.failedEventsOutputTag, markBatchFailed(batchEvent, ErrorConstants.ERR_INVALID_EVENT, ""))
-      metrics.incCounter(config.defaultDatasetID, config.failedEventCount)
+      context.output(config.failedEventsOutputTag(), markBatchFailed(batchEvent, ErrorConstants.ERR_INVALID_EVENT, ""))
+      metrics.incCounter(config.defaultDatasetID, config.eventFailedMetricsCount)
       return
     }
     val datasetId = batchEvent.get(config.CONST_DATASET)
@@ -79,16 +79,16 @@ class ExtractionFunction(config: ExtractorConfig, @transient var dedupEngine: De
                              metrics: Metrics): Unit = {
     val obsrvMeta = batchEvent(config.CONST_OBSRV_META).asInstanceOf[Map[String, AnyRef]]
     if (!super.containsEvent(batchEvent)) {
-      metrics.incCounter(dataset.id, config.failedEventCount)
-      context.output(config.failedEventsOutputTag, markBatchFailed(batchEvent, ErrorConstants.EVENT_MISSING, dataset.extractionConfig.get.extractionKey.get))
+      metrics.incCounter(dataset.id, config.eventFailedMetricsCount)
+      context.output(config.failedEventsOutputTag(), markBatchFailed(batchEvent, ErrorConstants.EVENT_MISSING, dataset.extractionConfig.get.extractionKey.get))
       return
     }
     val eventData = Util.getMutableMap(batchEvent(config.CONST_EVENT).asInstanceOf[Map[String, AnyRef]])
     val eventJson = JSONUtil.serialize(eventData)
     val eventSize = eventJson.getBytes("UTF-8").length
     if (eventSize > config.eventMaxSize) {
-      metrics.incCounter(dataset.id, config.failedEventCount)
-      context.output(config.failedEventsOutputTag, markEventFailed(dataset.id, eventData, ErrorConstants.EVENT_SIZE_EXCEEDED.copy(errorReason = Some(s"Event size is $eventSize, Max configured size is ${SystemConfig.maxEventSize}")), obsrvMeta))
+      metrics.incCounter(dataset.id, config.eventFailedMetricsCount)
+      context.output(config.failedEventsOutputTag(), markEventFailed(dataset.id, eventData, ErrorConstants.EVENT_SIZE_EXCEEDED.copy(errorReason = Some(s"Event size is $eventSize, Max configured size is ${SystemConfig.maxEventSize}")), obsrvMeta))
     } else {
       metrics.incCounter(dataset.id, config.skippedExtractionCount)
       context.output(config.rawEventsOutputTag, markEventSkipped(dataset.id, eventData, obsrvMeta))
@@ -105,8 +105,8 @@ class ExtractionFunction(config: ExtractorConfig, @transient var dedupEngine: De
         val eventJson = JSONUtil.serialize(eventData)
         val eventSize = eventJson.getBytes("UTF-8").length
         if (eventSize > config.eventMaxSize) {
-          metrics.incCounter(dataset.id, config.failedEventCount)
-          context.output(config.failedEventsOutputTag, markEventFailed(dataset.id, eventData, ErrorConstants.EVENT_SIZE_EXCEEDED.copy(errorReason = Some(s"Event size is $eventSize, Max configured size is ${SystemConfig.maxEventSize}")), obsrvMeta))
+          metrics.incCounter(dataset.id, config.eventFailedMetricsCount)
+          context.output(config.failedEventsOutputTag(), markEventFailed(dataset.id, eventData, ErrorConstants.EVENT_SIZE_EXCEEDED.copy(errorReason = Some(s"Event size is $eventSize, Max configured size is ${SystemConfig.maxEventSize}")), obsrvMeta))
         } else {
           metrics.incCounter(dataset.id, config.successEventCount)
           context.output(config.rawEventsOutputTag, markEventSuccess(dataset.id, eventData, obsrvMeta))

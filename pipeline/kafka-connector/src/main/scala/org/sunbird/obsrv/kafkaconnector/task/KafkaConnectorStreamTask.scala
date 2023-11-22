@@ -41,7 +41,7 @@ class KafkaConnectorStreamTask(config: KafkaConnectorConfig, kafkaConnector: Fli
               JSONUtil.serialize(mutableMap)
             }
           }.returns(classOf[String])
-          resultMapStream.sinkTo(kafkaConnector.kafkaStringSink(kafkaOutputTopic))
+          resultMapStream.sinkTo(kafkaConnector.kafkaSink[String](kafkaOutputTopic))
             .name(s"$datasetId-kafka-connector-sink").uid(s"$datasetId-kafka-connector-sink")
             .setParallelism(config.downstreamOperatorsParallelism)
       }

@@ -8,8 +8,8 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy
 import org.sunbird.obsrv.core.serde._
 
 import java.util.Properties
-import scala.collection.mutable
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 class FlinkKafkaConnector(config: BaseJobConfig[_]) extends Serializable {
 
@@ -31,10 +31,10 @@ class FlinkKafkaConnector(config: BaseJobConfig[_]) extends Serializable {
       .build()
   }
 
-  def kafkaStringSink(kafkaTopic: String): KafkaSink[String] = {
-    KafkaSink.builder[String]()
+  def kafkaSink[T](kafkaTopic: String): KafkaSink[T] = {
+    KafkaSink.builder[T]()
       .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-      .setRecordSerializer(new StringSerializationSchema(kafkaTopic))
+      .setRecordSerializer(new SerializationSchema(kafkaTopic))
       .setKafkaProducerConfig(config.kafkaProducerProperties)
       .build()
   }
@@ -54,14 +54,6 @@ class FlinkKafkaConnector(config: BaseJobConfig[_]) extends Serializable {
       .setDeserializer(new MapDeserializationSchema)
       .setProperties(consumerProperties)
       .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
-      .build()
-  }
-
-  def kafkaMapSink(kafkaTopic: String): KafkaSink[mutable.Map[String, AnyRef]] = {
-    KafkaSink.builder[mutable.Map[String, AnyRef]]()
-      .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-      .setRecordSerializer(new MapSerializationSchema(kafkaTopic))
-      .setKafkaProducerConfig(config.kafkaProducerProperties)
       .build()
   }
 

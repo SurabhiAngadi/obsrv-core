@@ -16,6 +16,7 @@ import org.scalatest.Matchers
 import org.sunbird.obsrv.core.model.ErrorConstants
 import org.sunbird.obsrv.core.streaming._
 import org.sunbird.obsrv.core.util.{FlinkUtil, JSONUtil, Util}
+import scala.collection.mutable
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -85,7 +86,7 @@ class BaseProcessFunctionTestSpec extends BaseSpec with Matchers {
           .process(new TestMapStreamFunc(bsMapConfig)).name("TestMapEventStream")
 
       mapStream.getSideOutput(bsConfig.mapOutputTag)
-        .sinkTo(kafkaConnector.kafkaMapSink(bsConfig.kafkaMapOutputTopic))
+        .sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](bsConfig.kafkaMapOutputTopic))
         .name("Map-Event-Producer")
 
       val stringStream =
@@ -95,7 +96,7 @@ class BaseProcessFunctionTestSpec extends BaseSpec with Matchers {
           }).window(TumblingProcessingTimeWindows.of(Time.seconds(2))).process(new TestStringWindowStreamFunc(bsConfig)).name("TestStringEventStream")
 
       stringStream.getSideOutput(bsConfig.stringOutputTag)
-        .sinkTo(kafkaConnector.kafkaStringSink(bsConfig.kafkaStringOutputTopic))
+        .sinkTo(kafkaConnector.kafkaSink[String](bsConfig.kafkaStringOutputTopic))
         .name("String-Producer")
 
       Future {
@@ -149,7 +150,7 @@ class BaseProcessFunctionTestSpec extends BaseSpec with Matchers {
     ErrorConstants.DENORM_KEY_MISSING.errorCode should be ("ERR_DENORM_1014")
     ErrorConstants.DENORM_KEY_NOT_A_STRING_OR_NUMBER.errorCode should be ("ERR_DENORM_1015")
 
-    val metrics = Metrics(Map("test" -> new ConcurrentHashMap[String, AtomicLong]()))
+    val metrics = Metrics(mutable.Map("test" -> new ConcurrentHashMap[String, AtomicLong]()))
     metrics.reset("test1", "m1")
   }
 

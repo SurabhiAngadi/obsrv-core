@@ -1,6 +1,5 @@
 package org.sunbird.obsrv.core.serde
 
-import java.nio.charset.StandardCharsets
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema
@@ -12,13 +11,16 @@ import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.model.{Constants, ErrorConstants}
 import org.sunbird.obsrv.core.util.{JSONUtil, Util}
 
+import java.nio.charset.StandardCharsets
 import scala.collection.mutable
 
 
 class MapDeserializationSchema extends KafkaRecordDeserializationSchema[mutable.Map[String, AnyRef]] {
 
   private val serialVersionUID = -3224825136576915426L
+
   override def getProducedType: TypeInformation[mutable.Map[String, AnyRef]] = TypeExtractor.getForClass(classOf[mutable.Map[String, AnyRef]])
+
   private[this] val logger = LoggerFactory.getLogger(classOf[MapDeserializationSchema])
 
   override def deserialize(record: ConsumerRecord[Array[Byte], Array[Byte]], out: Collector[mutable.Map[String, AnyRef]]): Unit = {
@@ -49,18 +51,29 @@ class MapDeserializationSchema extends KafkaRecordDeserializationSchema[mutable.
     }
   }
 
-  private def addError(event:mutable.Map[String, AnyRef], error: ErrorConstants.ErrorValue): Unit ={
+  private def addError(event: mutable.Map[String, AnyRef], error: ErrorConstants.ErrorValue): Unit = {
     val obsrvMeta = Util.getMutableMap(event(Constants.OBSRV_META).asInstanceOf[Map[String, AnyRef]])
     obsrvMeta.put(Constants.ERROR, Map(Constants.ERROR_CODE -> error.errorCode))
     event.put(Constants.OBSRV_META, obsrvMeta.toMap)
   }
 }
 
-class MapSerializationSchema(topic: String, key: Option[String] = None) extends KafkaRecordSerializationSchema[mutable.Map[String, AnyRef]] {
+class StringDeserializationSchema extends KafkaRecordDeserializationSchema[String] {
+
+  private val serialVersionUID = -3224825136576915426L
+
+  override def getProducedType: TypeInformation[String] = TypeExtractor.getForClass(classOf[String])
+
+  override def deserialize(record: ConsumerRecord[Array[Byte], Array[Byte]], out: Collector[String]): Unit = {
+    out.collect(new String(record.value(), StandardCharsets.UTF_8))
+  }
+}
+
+class SerializationSchema[T](topic: String, key: Option[String] = None) extends KafkaRecordSerializationSchema[T] {
 
   private val serialVersionUID = -4284080856874185929L
 
-  override def serialize(element: mutable.Map[String, AnyRef], context: KafkaRecordSerializationSchema.KafkaSinkContext, timestamp: java.lang.Long): ProducerRecord[Array[Byte], Array[Byte]] = {
+  override def serialize(element: T, context: KafkaRecordSerializationSchema.KafkaSinkContext, timestamp: java.lang.Long): ProducerRecord[Array[Byte], Array[Byte]] = {
     val out = JSONUtil.serialize(element)
     key.map { kafkaKey =>
       new ProducerRecord[Array[Byte], Array[Byte]](topic, kafkaKey.getBytes(StandardCharsets.UTF_8), out.getBytes(StandardCharsets.UTF_8))

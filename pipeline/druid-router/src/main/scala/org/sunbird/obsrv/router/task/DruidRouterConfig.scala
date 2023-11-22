@@ -42,4 +42,6 @@ class DruidRouterConfig(override val config: Config) extends BaseJobConfig[mutab
   override def successTag(): OutputTag[mutable.Map[String, AnyRef]] = {
     statsOutputTag
   }
+
+  override def failedEventsOutputTag(): OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]]("failed-events")
 }

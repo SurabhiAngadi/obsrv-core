@@ -1,14 +1,13 @@
 package org.sunbird.obsrv.core.util
 
-import java.lang.reflect.{ParameterizedType, Type}
 import com.fasterxml.jackson.annotation.JsonInclude.Include
 import com.fasterxml.jackson.core.JsonGenerator.Feature
-import com.fasterxml.jackson.databind.{DeserializationFeature, JsonNode, MapperFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.module.scala.{ClassTagExtensions, DefaultScalaModule, ScalaObjectMapper}
+import com.fasterxml.jackson.databind.{DeserializationFeature, JsonNode, SerializationFeature}
+import com.fasterxml.jackson.module.scala.{ClassTagExtensions, DefaultScalaModule}
 
-import scala.collection.mutable
+import java.lang.reflect.{ParameterizedType, Type}
 
 object JSONUtil {
 
@@ -22,8 +21,8 @@ object JSONUtil {
   mapper.setSerializationInclusion(Include.NON_NULL)
 
   @throws(classOf[Exception])
-  def serialize(obj: AnyRef): String = {
-    mapper.writeValueAsString(obj)
+  def serialize(obj: Any): String = {
+    if(obj.isInstanceOf[String]) obj.asInstanceOf[String] else mapper.writeValueAsString(obj)
   }
 
   def deserialize[T: Manifest](json: String): T = {

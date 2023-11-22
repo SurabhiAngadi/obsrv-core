@@ -6,28 +6,27 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.exception.ObsrvException
-import org.sunbird.obsrv.core.model.{Constants, ErrorConstants}
 import org.sunbird.obsrv.core.model.Models.{PData, SystemEvent}
-import org.sunbird.obsrv.core.streaming.{BaseProcessFunction, Metrics, MetricsList}
+import org.sunbird.obsrv.core.model.{Constants, ErrorConstants}
+import org.sunbird.obsrv.core.streaming.Metrics
 import org.sunbird.obsrv.core.util.JSONUtil
 import org.sunbird.obsrv.model.DatasetModels.Dataset
 import org.sunbird.obsrv.model.DatasetStatus
 import org.sunbird.obsrv.preprocessor.task.PipelinePreprocessorConfig
 import org.sunbird.obsrv.preprocessor.util.SchemaValidator
 import org.sunbird.obsrv.registry.DatasetRegistry
+import org.sunbird.obsrv.streaming.BaseDatasetProcessFunction
 
 import scala.collection.mutable
 
 class EventValidationFunction(config: PipelinePreprocessorConfig, @transient var schemaValidator: SchemaValidator = null)
                              (implicit val eventTypeInfo: TypeInformation[mutable.Map[String, AnyRef]])
-  extends BaseProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]](config) {
+  extends BaseDatasetProcessFunction(config) {
   private[this] val logger = LoggerFactory.getLogger(classOf[EventValidationFunction])
 
-  override def getMetricsList(): MetricsList = {
-    val metrics = List(config.validationTotalMetricsCount, config.validationFailureMetricsCount,
-      config.validationSuccessMetricsCount, config.validationSkipMetricsCount, config.eventFailedMetricsCount,
-      config.eventIgnoredMetricsCount)
-    MetricsList(DatasetRegistry.getDataSetIds(config.datasetType()), metrics)
+  override def getMetrics(): List[String] = {
+    List(config.validationTotalMetricsCount, config.validationFailureMetricsCount, config.validationSuccessMetricsCount,
+      config.validationSkipMetricsCount, config.eventIgnoredMetricsCount)
   }
 
   override def open(parameters: Configuration): Unit = {
@@ -42,30 +41,12 @@ class EventValidationFunction(config: PipelinePreprocessorConfig, @transient var
     super.close()
   }
 
-  override def processElement(msg: mutable.Map[String, AnyRef],
+  override def processElement(dataset: Dataset, msg: mutable.Map[String, AnyRef],
                               context: ProcessFunction[mutable.Map[String, AnyRef], mutable.Map[String, AnyRef]]#Context,
                               metrics: Metrics): Unit = {
 
     metrics.incCounter(config.defaultDatasetID, config.validationTotalMetricsCount)
-    val datasetId = msg.get(config.CONST_DATASET)
-    if (datasetId.isEmpty) {
-      context.output(config.failedEventsOutputTag, markFailed(msg, ErrorConstants.MISSING_DATASET_ID, config.jobName))
-      metrics.incCounter(config.defaultDatasetID, config.eventFailedMetricsCount)
-      return
-    }
-    val datasetOpt = DatasetRegistry.getDataset(datasetId.get.asInstanceOf[String])
-    if (datasetOpt.isEmpty) {
-      context.output(config.failedEventsOutputTag, markFailed(msg, ErrorConstants.MISSING_DATASET_CONFIGURATION, config.jobName))
-      metrics.incCounter(config.defaultDatasetID, config.eventFailedMetricsCount)
-      return
-    }
-    val dataset = datasetOpt.get
-    if (!super.containsEvent(msg)) {
-      metrics.incCounter(dataset.id, config.eventFailedMetricsCount)
-      context.output(config.failedEventsOutputTag, markFailed(msg, ErrorConstants.EVENT_MISSING, config.jobName))
-      return
-    }
-    if(dataset.status != DatasetStatus.Live) {
+    if (dataset.status != DatasetStatus.Live) {
       metrics.incCounter(dataset.id, config.eventIgnoredMetricsCount)
       return
     }
@@ -98,7 +79,7 @@ class EventValidationFunction(config: PipelinePreprocessorConfig, @transient var
         logger.error("EventValidationFunction:validateEvent()-Exception: ", ex.getMessage)
         ex.printStackTrace()
         metrics.incCounter(dataset.id, config.validationFailureMetricsCount)
-        context.output(config.failedEventsOutputTag, markFailed(msg, ex.error, "EventValidation"))
+        context.output(config.failedEventsOutputTag(), markFailed(msg, ex.error, "EventValidation"))
     }
   }
 

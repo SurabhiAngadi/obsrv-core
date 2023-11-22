@@ -22,26 +22,22 @@ class ExtractorConfig(override val config: Config) extends BaseJobConfig[mutable
   val kafkaInputTopic: String = config.getString("kafka.input.topic")
   val kafkaSuccessTopic: String = config.getString("kafka.output.raw.topic")
   val kafkaDuplicateTopic: String = config.getString("kafka.output.extractor.duplicate.topic")
-  val kafkaFailedTopic: String = config.getString("kafka.output.failed.topic")
   val kafkaBatchFailedTopic: String = config.getString("kafka.output.batch.failed.topic")
   val eventMaxSize: Long = SystemConfig.maxEventSize
 
   private val RAW_EVENTS_OUTPUT_TAG = "raw-events"
-  private val FAILED_EVENTS_OUTPUT_TAG = "failed-events"
   private val FAILED_BATCH_EVENTS_OUTPUT_TAG = "failed-batch-events"
   private val DUPLICATE_EVENTS_OUTPUT_TAG = "duplicate-batch-events"
 
   // Metric List
   val totalEventCount = "total-event-count"
   val successEventCount = "success-event-count"
-  val failedEventCount = "failed-event-count"
   val failedExtractionCount = "failed-extraction-count"
   val successExtractionCount = "success-extraction-count"
   val duplicateExtractionCount = "duplicate-extraction-count"
   val skippedExtractionCount = "skipped-extraction-count"
 
   val rawEventsOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](RAW_EVENTS_OUTPUT_TAG)
-  val failedEventsOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](FAILED_EVENTS_OUTPUT_TAG)
   val failedBatchEventOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](FAILED_BATCH_EVENTS_OUTPUT_TAG)
   val duplicateEventOutputTag: OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]](id = DUPLICATE_EVENTS_OUTPUT_TAG)
 
@@ -57,5 +53,5 @@ class ExtractorConfig(override val config: Config) extends BaseJobConfig[mutable
   override def inputTopic(): String = kafkaInputTopic
   override def inputConsumer(): String = "extractor-consumer"
   override def successTag(): OutputTag[mutable.Map[String, AnyRef]] = rawEventsOutputTag
-
+  override def failedEventsOutputTag(): OutputTag[mutable.Map[String, AnyRef]] = OutputTag[mutable.Map[String, AnyRef]]("failed-events")
 }

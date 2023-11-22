@@ -57,6 +57,11 @@
         </dependency>
         <dependency>
             <groupId>org.sunbird.obsrv.pipeline</groupId>
+            <artifactId>denormalizer</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.sunbird.obsrv.pipeline</groupId>
             <artifactId>transformer</artifactId>
             <version>1.0.0</version>
         </dependency>

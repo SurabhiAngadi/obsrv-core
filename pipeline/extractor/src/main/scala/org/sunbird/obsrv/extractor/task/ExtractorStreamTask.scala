@@ -34,21 +34,19 @@ class ExtractorStreamTask(config: ExtractorConfig, kafkaConnector: FlinkKafkaCon
       .name(config.extractionFunction).uid(config.extractionFunction)
       .setParallelism(config.downstreamOperatorsParallelism)
 
-    extractorStream.getSideOutput(config.failedBatchEventOutputTag).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaBatchFailedTopic))
+    extractorStream.getSideOutput(config.failedBatchEventOutputTag).sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaBatchFailedTopic))
       .name(config.extractorBatchFailedEventsProducer).uid(config.extractorBatchFailedEventsProducer).setParallelism(config.downstreamOperatorsParallelism)
 
-    extractorStream.getSideOutput(config.successTag()).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaSuccessTopic))
+    extractorStream.getSideOutput(config.successTag()).sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaSuccessTopic))
       .name(config.extractorRawEventsProducer).uid(config.extractorRawEventsProducer).setParallelism(config.downstreamOperatorsParallelism)
 
-    extractorStream.getSideOutput(config.duplicateEventOutputTag).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaDuplicateTopic))
+    extractorStream.getSideOutput(config.duplicateEventOutputTag).sinkTo(kafkaConnector.kafkaSink[mutable.Map[String, AnyRef]](config.kafkaDuplicateTopic))
       .name(config.extractorDuplicateProducer).uid(config.extractorDuplicateProducer).setParallelism(config.downstreamOperatorsParallelism)
 
-    extractorStream.getSideOutput(config.systemEventsOutputTag).sinkTo(kafkaConnector.kafkaStringSink(config.kafkaSystemTopic))
+    extractorStream.getSideOutput(config.systemEventsOutputTag).sinkTo(kafkaConnector.kafkaSink[String](config.kafkaSystemTopic))
       .name(config.systemEventsProducer).uid(config.systemEventsProducer).setParallelism(config.downstreamOperatorsParallelism)
 
-    extractorStream.getSideOutput(config.failedEventsOutputTag).sinkTo(kafkaConnector.kafkaMapSink(config.kafkaFailedTopic))
-      .name(config.extractorFailedEventsProducer).uid(config.extractorFailedEventsProducer).setParallelism(config.downstreamOperatorsParallelism)
-
+    addDefaultSinks(extractorStream, config, kafkaConnector)
     extractorStream.getSideOutput(config.successTag())
   }
 }
