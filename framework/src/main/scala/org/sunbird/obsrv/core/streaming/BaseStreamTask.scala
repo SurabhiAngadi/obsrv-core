@@ -17,7 +17,7 @@ abstract class BaseStreamTask[T] {
 
   def addDefaultSinks(dataStream: SingleOutputStreamOperator[T], config: BaseJobConfig[T], kafkaConnector: FlinkKafkaConnector): DataStreamSink[T] = {
     dataStream.getSideOutput(config.failedEventsOutputTag()).sinkTo(kafkaConnector.kafkaSink[T](config.kafkaFailedTopic))
-      .name(config.failedEventProducer).uid(config.failedEventProducer).setParallelism(config.downstreamOperatorsParallelism)
+      .name(config.jobName + "-" + config.failedEventProducer).uid(config.jobName + "-" + config.failedEventProducer).setParallelism(config.downstreamOperatorsParallelism)
   }
 
   def getMapDataStream(env: StreamExecutionEnvironment, config: BaseJobConfig[T], kafkaConnector: FlinkKafkaConnector): DataStream[mutable.Map[String, AnyRef]] = {
