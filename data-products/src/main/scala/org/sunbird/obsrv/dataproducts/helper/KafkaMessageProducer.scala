@@ -26,6 +26,7 @@ case class KafkaMessageProducer(config: Config) {
     } catch {
       case e: Exception =>
         logger.error("Exception occured while sending message to kafka", e.getMessage)
+        e.printStackTrace()
     }
   }
 }

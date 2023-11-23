@@ -8,17 +8,18 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.json4s.native.JsonMethods._
-import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.util.JSONUtil
 import org.sunbird.obsrv.dataproducts.helper.{BaseMetricHelper, KafkaMessageProducer}
 import org.sunbird.obsrv.dataproducts.model.{Edata, MetricLabel}
 import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
 import org.sunbird.obsrv.registry.DatasetRegistry
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
 
 import scala.collection.mutable
 
 object MasterDataProcessorIndexer {
-  private[this] val logger = LoggerFactory.getLogger(MasterDataProcessorIndexer.getClass)
+  private final val logger: Logger = LogManager.getLogger(MasterDataProcessorIndexer.getClass)
   private val config: Config = ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment())
   private val dayPeriodFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyyMMdd").withZoneUTC()
 
