@@ -8,8 +8,9 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.json4s.native.JsonMethods._
+import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.util.JSONUtil
-import org.sunbird.obsrv.dataproducts.helper.BaseMetricHelper
+import org.sunbird.obsrv.dataproducts.helper.{BaseMetricHelper, KafkaMessageProducer}
 import org.sunbird.obsrv.dataproducts.model.{Edata, MetricLabel}
 import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
 import org.sunbird.obsrv.registry.DatasetRegistry
@@ -17,6 +18,7 @@ import org.sunbird.obsrv.registry.DatasetRegistry
 import scala.collection.mutable
 
 object MasterDataProcessorIndexer {
+  private[this] val logger = LoggerFactory.getLogger(MasterDataProcessorIndexer.getClass)
   private val config: Config = ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment())
   private val dayPeriodFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyyMMdd").withZoneUTC()
 
@@ -31,12 +33,7 @@ object MasterDataProcessorIndexer {
     val metrics = BaseMetricHelper(config)
     indexedDatasets.foreach(dataset => {
       metrics.generate(datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("total_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}"))))
-      try {
         indexDataset(dataset, metrics, System.currentTimeMillis())
-      } catch {
-        case e: Exception =>
-          e.printStackTrace()
-      }
     })
   }
 
@@ -48,11 +45,12 @@ object MasterDataProcessorIndexer {
       }
       val datasource = datasources.get.head
       val paths = getPaths(datasource)
-      val events_count = createDataFile(dataset, paths.timestamp, paths.outputFilePath)
+      val events_count = createDataFile(dataset, paths.outputFilePath)
       val ingestionSpec = updateIngestionSpec(datasource, paths.datasourceRef, paths.ingestionPath)
       submitIngestionTask(ingestionSpec)
+      DatasetRegistry.updateDatasourceRef(datasource, paths.datasourceRef)
       if (!datasource.datasourceRef.equals(paths.datasourceRef)) {
-        updateDataSourceRef(datasource, paths.datasourceRef)
+        deleteDataSource(datasource.datasourceRef)
       }
       val end_time = System.currentTimeMillis()
       val success_time = end_time - time
@@ -111,12 +109,8 @@ object MasterDataProcessorIndexer {
     val response = Unirest.post(config.getString("druid.indexer.url"))
       .header("Content-Type", "application/json")
       .body(ingestionSpec).asJson()
-    println(response.getBody)
-    response.ifFailure(response => throw new Exception(s"Exception while submitting ingestion task - ${response.getStatusText}"))
-  }
-
-  private def updateDataSourceRef(datasource: DataSource, datasourceRef: String): Unit = {
-    DatasetRegistry.updateDatasourceRef(datasource, datasourceRef)
+    logger.info("Ingestion spec - " + response.getBody)
+    response.ifFailure(response => throw new Exception(s"Exception while submitting ingestion task - ${response.getBody}"))
   }
 
   private def deleteDataSource(datasourceRef: String): Unit = {
@@ -124,34 +118,36 @@ object MasterDataProcessorIndexer {
     val response = Unirest.delete(config.getString("druid.datasource.delete.url") + datasourceRef)
       .header("Content-Type", "application/json")
       .asJson()
-    response.ifFailure(response => throw new Exception("Exception while deleting datasource" + datasourceRef))
+    response.ifFailure(response => throw new Exception("Exception while deleting datasource" + datasourceRef + " ,Response body - " + response.getBody))
   }
 
-  def createDataFile(dataset: Dataset, timestamp: Long, outputFilePath: String) = {
+  def createDataFile(dataset: Dataset, outputFilePath: String) = {
     val conf = new SparkConf()
       .setAppName("MasterDataProcessorIndexer")
       .set("spark.redis.host", dataset.datasetConfig.redisDBHost.get)
       .set("spark.redis.port", String.valueOf(dataset.datasetConfig.redisDBPort.get))
       .set("spark.redis.db", String.valueOf(dataset.datasetConfig.redisDB.get))
-    val readWriteConf = ReadWriteConfig(scanCount = config.getInt("redis_scan_count"), maxPipelineSize = config.getInt("redis_maxPipelineSize"))
+    val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
     val sc = new SparkContext(conf)
     val spark = new SparkSession.Builder().config(conf).getOrCreate()
     val rdd = sc.fromRedisKV("*")(readWriteConfig = readWriteConf)
       .map(f =>
-        processEvent(f._2, timestamp)
+        processEvent(f._2)
       )
     val response = rdd.collect()
     val stringifiedResponse = JSONUtil.serialize(response)
     val df = spark.read.json(spark.sparkContext.parallelize(Seq(stringifiedResponse)))
     val noOfRecords = df.count()
-    println("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
+    logger.info("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
     df.coalesce(1).write.mode("overwrite").option("compression", "gzip").json(outputFilePath)
     spark.stop()
     sc.stop()
     noOfRecords
   }
 
-  private def processEvent(value: String, timestamp: Long) = {
+  private def processEvent(value: String) = {
+    val dt = new DateTime(DateTimeZone.UTC).withTimeAtStartOfDay()
+    val timestamp = dt.getMillis
     val json = JSONUtil.deserialize[mutable.Map[String, AnyRef]](value)
     json("obsrv_meta") = mutable.Map[String, AnyRef]("syncts" -> timestamp.asInstanceOf[AnyRef]).asInstanceOf[AnyRef]
     json
