@@ -31,10 +31,7 @@ case class BaseMetricHelper(config: Config) {
     MetricObject(id = datasetId, `type` = "Dataset", ver = "1.0.0")
   }
 
-  def generate(datasetId: String, edata: Edata) = {
-    val dt = new DateTime(DateTimeZone.UTC).withTimeAtStartOfDay()
-    val timestamp = dt.getMillis
-    val ets = timestamp
+  def generate(ets: Long, datasetId: String, edata: Edata) = {
     val `object` = getObject(datasetId)
     val actor = Actor(id = "MasterDataProcessorIndexerJob", `type` = "SYSTEM")
     val pdata = Pdata(id = "DataProducts", pid = "MasterDataProcessorIndexerJob", ver = "1.0.0")
