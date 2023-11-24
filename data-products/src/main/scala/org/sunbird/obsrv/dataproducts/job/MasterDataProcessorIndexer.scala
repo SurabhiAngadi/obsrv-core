@@ -129,7 +129,7 @@ object MasterDataProcessorIndexer {
     response.ifFailure(response => throw new Exception("Exception while deleting datasource" + datasourceRef + " ,Response body - " + response.getBody))
   }
 
-  def createDataFile(dataset: Dataset, outputFilePath: String) = {
+  def createDataFile(dataset: Dataset,outputFilePath: String) = {
     val conf = new SparkConf()
       .setAppName("MasterDataProcessorIndexer")
       .set("spark.redis.host", dataset.datasetConfig.redisDBHost.get)
@@ -138,13 +138,15 @@ object MasterDataProcessorIndexer {
     val readWriteConf = ReadWriteConfig(scanCount = config.getInt("redis_scan_count"), maxPipelineSize = config.getInt("redis_maxPipelineSize"))
     val sc = new SparkContext(conf)
     val spark = new SparkSession.Builder().config(conf).getOrCreate()
-    import spark.implicits._
-    val df = sc.fromRedisKV("*")(readWriteConfig = readWriteConf)
+    val rdd = sc.fromRedisKV("*")(readWriteConfig = readWriteConf)
       .map(f =>
         processEvent(f._2)
-      ).toDF()
+      )
+    val response = rdd.collect()
+    val stringifiedResponse = JSONUtil.serialize(response)
+    val df = spark.read.json(spark.sparkContext.parallelize(Seq(stringifiedResponse)))
     val noOfRecords = df.count()
-    logger.info("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
+    println("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
     df.coalesce(1).write.mode("overwrite").option("compression", "gzip").json(outputFilePath)
     spark.stop()
     sc.stop()
@@ -155,7 +157,7 @@ object MasterDataProcessorIndexer {
     val dt = new DateTime(DateTimeZone.UTC).withTimeAtStartOfDay()
     val timestamp = dt.getMillis
     val json = JSONUtil.deserialize[mutable.Map[String, AnyRef]](value)
-    json("obsrv_meta") = mutable.Map[String, Long]("syncts" -> timestamp)
+    json("obsrv_meta") = mutable.Map[String, AnyRef]("syncts" -> timestamp.asInstanceOf[AnyRef]).asInstanceOf[AnyRef]
     json
   }
 }
