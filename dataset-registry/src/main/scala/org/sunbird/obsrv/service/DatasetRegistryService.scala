@@ -2,7 +2,6 @@ package org.sunbird.obsrv.service
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.slf4j.LoggerFactory
-import org.sunbird.obsrv.core.streaming.BaseDeduplication
 import org.sunbird.obsrv.core.util.{JSONUtil, PostgresConnect, PostgresConnectionConfig}
 import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, DataSource, Dataset, DatasetConfig, DatasetSourceConfig, DatasetTransformation, DedupConfig, DenormConfig, ExtractionConfig, RouterConfig, TransformationFunction, ValidationConfig}
 
@@ -105,7 +104,7 @@ object DatasetRegistryService {
     val postgresConnect = new PostgresConnect(postgresConfig)
     try {
       // TODO: Check if the udpate is successful. Else throw an Exception
-      postgresConnect.executeQuery(s"UPDATE datasources set datasource_ref = '$datasourceRef' where datasource='${datasource.datasource}' and dataset_id='${datasource.datasetId}'")
+      postgresConnect.executeUpdate(s"UPDATE datasources set datasource_ref = '$datasourceRef' where datasource='${datasource.datasource}' and dataset_id='${datasource.datasetId}'")
     } catch {
       case ex: Exception =>
         logger.error("Exception while reading dataset transformations from Postgres", ex)
@@ -113,7 +112,6 @@ object DatasetRegistryService {
       postgresConnect.closeConnection()
     }
   }
-
 
   private def parseDataset(rs: ResultSet): Dataset = {
     val datasetId = rs.getString("id")

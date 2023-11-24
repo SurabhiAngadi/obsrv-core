@@ -3,7 +3,7 @@ package org.sunbird.obsrv.dataproducts.job
 import com.redislabs.provider.redis._
 import com.typesafe.config.{Config, ConfigFactory}
 import kong.unirest.Unirest
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.{DateTime, DateTimeZone}
@@ -69,9 +69,9 @@ object MasterDataProcessorIndexer {
     val date = dayPeriodFormat.print(dt)
     val provider = providerFormat(config.getString("cloudStorage.provider"))
     val cloudPrefix = if (config.getString("cloudStorage.provider") == "azure") {
-      provider.sparkProviderURIFormat + s"""://${config.getString("cloudStorage.accountName")}.blob.core.windows.net/${config.getString("cloudStorage.container")}/"""
+      provider.sparkProviderURIFormat
     } else {
-      provider.sparkProviderURIFormat + s"""://${config.getString("cloudStorage.container")}/"""
+      provider.sparkProviderURIFormat
     }
     val pathSuffix = s"""masterdata-indexer/${datasource.datasetId}/$date/"""
     val ingestionPath = cloudPrefix.replace(provider.sparkProviderURIFormat, provider.druidProviderPrefix) + pathSuffix
@@ -81,11 +81,8 @@ object MasterDataProcessorIndexer {
   }
 
   private def updateIngestionSpec(datasource: DataSource, datasourceRef: String, filePath: String): String = {
-    val deltaIngestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"$datasourceRef"},"ioConfig":{"type":"index_parallel"},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
-    val provider = providerFormat(config.getString("cloudStorage.provider"))
-    val inputSourceSpec = if(provider.druidProvider == "local")
-      s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","baseDir":"${config.getString("cloudStorage.container")}","filter":"**.json.gz"}}}}"""
-    else s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","objectGlob":"**.json.gz","prefixes":["$filePath"]}}}}"""
+    val deltaIngestionSpec = deltaIngestionSpecProvider(datasourceRef)
+    val inputSourceSpec = inputSourceSpecProvider(filePath)
     val deltaJson = parse(deltaIngestionSpec)
     val inputSourceJson = parse(inputSourceSpec)
     val ingestionSpec = parse(datasource.ingestionSpec)
@@ -93,20 +90,31 @@ object MasterDataProcessorIndexer {
     compact(render(modIngestionSpec))
   }
 
+  private def deltaIngestionSpecProvider(datasourceRef: String): String = {
+    val deltaIngestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"$datasourceRef"},"ioConfig":{"type":"index_parallel"},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
+    deltaIngestionSpec
+  }
+  private def inputSourceSpecProvider(filePath: String): String ={
+    val provider = providerFormat(config.getString("cloudStorage.provider"))
+    val inputSourceSpec = if (provider.druidProvider == "local")
+      s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","baseDir":"${config.getString("cloudStorage.container")}","filter":"**.json.gz"}}}}"""
+    else s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","objectGlob":"**.json.gz","prefixes":["$filePath"]}}}}"""
+    inputSourceSpec
+  }
+
   private def providerFormat(cloudProvider: String): BlobProvider = {
     cloudProvider match {
-      case "local" => BlobProvider("file", "local", "file")
-      case "aws" => BlobProvider("s3a","s3", "s3")
-      case "azure" => BlobProvider("wasbs", "azure", "azure")
-      case "gcloud" => BlobProvider("gs", "google", "gs")
-      case "cephs3" => BlobProvider("s3a", "s3", "s3") // TODO: Have to check Druid compatibility
-      case "oci" => BlobProvider("s3a", "s3", "s3") // TODO: Have to check Druid compatibility
+      case "local" => BlobProvider(s"file://${config.getString("cloudStorage.container")}/", "local", "file")
+      case "aws" => BlobProvider(s"s3a://${config.getString("cloudStorage.container")}/","s3", "s3")
+      case "azure" => BlobProvider(s"wasbs://${config.getString("cloudStorage.accountName")}.blob.core.windows.net/azure/", "azure", "azure")
+      case "gcloud" => BlobProvider(s"gs://${config.getString("cloudStorage.container")}/", "google", "gs")
+      case "cephs3" => BlobProvider(s"s3a://${config.getString("cloudStorage.container")}/", "s3", "s3") // TODO: Have to check Druid compatibility
+      case "oci" => BlobProvider(s"s3a://${config.getString("cloudStorage.container")}/", "s3", "s3") // TODO: Have to check Druid compatibility
       case _ => throw new Exception("Unsupported provider")
     }
   }
 
   private def submitIngestionTask(ingestionSpec: String) = {
-    // TODO: Handle success and failure responses properly
     val response = Unirest.post(config.getString("druid.indexer.url"))
       .header("Content-Type", "application/json")
       .body(ingestionSpec).asJson()
@@ -115,7 +123,6 @@ object MasterDataProcessorIndexer {
   }
 
   private def deleteDataSource(datasourceRef: String): Unit = {
-    // TODO: Handle success and failure responses properly
     val response = Unirest.delete(config.getString("druid.datasource.delete.url") + datasourceRef)
       .header("Content-Type", "application/json")
       .asJson()
@@ -128,16 +135,14 @@ object MasterDataProcessorIndexer {
       .set("spark.redis.host", dataset.datasetConfig.redisDBHost.get)
       .set("spark.redis.port", String.valueOf(dataset.datasetConfig.redisDBPort.get))
       .set("spark.redis.db", String.valueOf(dataset.datasetConfig.redisDB.get))
-    val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
+    val readWriteConf = ReadWriteConfig(scanCount = config.getInt("redis_scan_count"), maxPipelineSize = config.getInt("redis_maxPipelineSize"))
     val sc = new SparkContext(conf)
     val spark = new SparkSession.Builder().config(conf).getOrCreate()
-    val rdd = sc.fromRedisKV("*")(readWriteConfig = readWriteConf)
+    import spark.implicits._
+    val df = sc.fromRedisKV("*")(readWriteConfig = readWriteConf)
       .map(f =>
         processEvent(f._2)
-      )
-    val response = rdd.collect()
-    val stringifiedResponse = JSONUtil.serialize(response)
-    val df = spark.read.json(spark.sparkContext.parallelize(Seq(stringifiedResponse)))
+      ).toDF()
     val noOfRecords = df.count()
     logger.info("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
     df.coalesce(1).write.mode("overwrite").option("compression", "gzip").json(outputFilePath)
@@ -150,7 +155,7 @@ object MasterDataProcessorIndexer {
     val dt = new DateTime(DateTimeZone.UTC).withTimeAtStartOfDay()
     val timestamp = dt.getMillis
     val json = JSONUtil.deserialize[mutable.Map[String, AnyRef]](value)
-    json("obsrv_meta") = mutable.Map[String, AnyRef]("syncts" -> timestamp.asInstanceOf[AnyRef]).asInstanceOf[AnyRef]
+    json("obsrv_meta") = mutable.Map[String, Long]("syncts" -> timestamp)
     json
   }
 }
