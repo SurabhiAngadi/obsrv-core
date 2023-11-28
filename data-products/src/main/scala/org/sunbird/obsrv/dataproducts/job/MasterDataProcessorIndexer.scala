@@ -149,7 +149,6 @@ object MasterDataProcessorIndexer {
       .map(f =>
         processEvent(f._2)
       ).toDF()
-    // Show the result
     //      .map(f =>
     //        processEvent(f._2)
     //      ).toDF()
