@@ -1,9 +1,7 @@
 package org.sunbird.obsrv.dataproducts.helper
 
 import com.typesafe.config.Config
-import org.joda.time.{DateTime, DateTimeZone}
 import org.sunbird.obsrv.core.util.JSONUtil
-import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer.dayPeriodFormat
 import org.sunbird.obsrv.dataproducts.model.{Actor, Context, Edata, IJobMetric, JobMetric, MetricObject, Pdata}
 
 case class BaseMetricHelper(config: Config) {
@@ -27,7 +25,7 @@ case class BaseMetricHelper(config: Config) {
     metrics.get(name).getOrElse("")
   }
 
-  private def getObject(datasetId: String) = {
+  def getObject(datasetId: String) = {
     MetricObject(id = datasetId, `type` = "Dataset", ver = "1.0.0")
   }
 
