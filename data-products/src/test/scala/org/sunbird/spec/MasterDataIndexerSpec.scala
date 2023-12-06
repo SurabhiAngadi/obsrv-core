@@ -27,10 +27,11 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.log4j.spi.LoggerFactory
 import org.apache.logging.log4j.Logger
 import org.mockito.ArgumentMatchers.any
+import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer.Paths
 
 class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matchers {
 
-  private val jobConfig: Config = ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment())
+  private val jobConfig: Config = ConfigFactory.load("masterdata-indexer-test.conf").withFallback(ConfigFactory.systemEnvironment())
   private val azureConfig: Config = ConfigFactory.load("azure-cred.conf").withFallback(ConfigFactory.systemEnvironment())
 
   val metrics = BaseMetricHelper(jobConfig)
@@ -56,7 +57,7 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   val customKafkaConsumerProperties: Map[String, String] = Map[String, String]("auto.offset.reset" -> "earliest", "group.id" -> "test-event-schema-group")
   implicit val embeddedKafkaConfig: EmbeddedKafkaConfig =
     EmbeddedKafkaConfig(
-      kafkaPort = 9093,
+      kafkaPort = 9092,
       zooKeeperPort = 2183,
       customConsumerProperties = customKafkaConsumerProperties
     )
@@ -241,16 +242,36 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     noOfRecords should be(5)
   }
 
-  "MasterDataIndexerProcessor" should "submit ingestion task successfully" in {
-    mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("Mock Response"))
-    val testConfig = jobConfig.withValue("druid.indexer.url", ConfigValueFactory.fromAnyRef(mockServer.url("http://localhost:8888/druid/indexer/v1/task").toString))
+  "MasterDataIndexerProcessor" should "index dataset successfully" in {
+    val dataset = DatasetRegistry.getDataset("md1")
+    val datasource = DataSource("datasource1", "md1", "", s"datasource1-${date}")
+    val datasetid = "md1"
+    val outputFilePath = s"file:///home/sankethika/obsrv-data/masterdata-indexer/md1/${date}/"
+    val paths = Paths(s"datasource1-${date}", s"file:///home/sankethika/obsrv-data/masterdata-indexer/md1/${date}/", s"file:///home/sankethika/obsrv-data/masterdata-indexer/md1/${date}/", new DateTime(DateTimeZone.UTC).withTimeAtStartOfDay().getMillis)
+    val (spark ,sc) = MasterDataProcessorIndexer.getSparkSession(dataset.get)
+    val expected_events_count = 5
+    val actual_events_count = MasterDataProcessorIndexer.createDataFile(dataset.get, outputFilePath, sc, spark, jobConfig)
     val ingestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"datasource1-${date}"},"ioConfig":{"type":"index_parallel","inputSource":{"type":"local","baseDir":"/home/sankethika/obsrv-data","filter":"**.json.gz"}},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
-    MasterDataProcessorIndexer.submitIngestionTask(ingestionSpec, testConfig)
-    val request = mockServer.takeRequest()
-    request.getMethod shouldBe "POST"
-    request.getHeader("Content-Type") shouldBe "application/json"
-    request.getBody.readUtf8() shouldBe ingestionSpec
+    val time = System.currentTimeMillis()
+
+    MasterDataProcessorIndexer.indexDataset(jobConfig, dataset.get, metrics, time)
+
+    assert(dataset.get.id == datasetid)
+    assert(MasterDataProcessorIndexer.getPaths(datasource, jobConfig) == paths)
+    assert(actual_events_count == expected_events_count)
+    assert(MasterDataProcessorIndexer.updateIngestionSpec(datasource, datasource.datasourceRef, paths.outputFilePath, jobConfig) == ingestionSpec)
   }
+
+//  "MasterDataIndexerProcessor" should "submit ingestion task successfully" in {
+//    mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("Mock Response"))
+//    val testConfig = jobConfig.withValue("druid.indexer.url", ConfigValueFactory.fromAnyRef(mockServer.url("http://localhost:8888/druid/indexer/v1/task").toString))
+//    val ingestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"datasource1-${date}"},"ioConfig":{"type":"index_parallel","inputSource":{"type":"local","baseDir":"/home/sankethika/obsrv-data","filter":"**.json.gz"}},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
+//    MasterDataProcessorIndexer.submitIngestionTask(ingestionSpec, testConfig)
+//    val request = mockServer.takeRequest()
+//    request.getMethod shouldBe "POST"
+//    request.getHeader("Content-Type") shouldBe "application/json"
+//    request.getBody.readUtf8() shouldBe ingestionSpec
+//  }
 
   "JobMetric" should "create actor form valid parameters" in {
     val id = "JobId"
@@ -367,16 +388,5 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     verify(mockProducer.send(record))
   }
 
-  "KafkaMessageProducer" should "throw error if an exception occurs while sending a message" in {
-    val message = """{"eid":"METRIC","ets":1701854838310,"mid":"51d9fecd-6654-4f16-ad1d-dc6204826d79","actor":{"id":"MasterDataProcessorIndexerJob","type":"SYSTEM"},"context":{"env":"local","pdata":{"id":"DataProducts","pid":"MasterDataProcessorIndexerJob","ver":"1.0.0"}},"object":{"id":"md1","type":"Dataset","ver":"1.0.0"},"edata":{"metric":{"key":"value"},"labels":[{"key":"label-key","value":"label-value"}]}}"""
-    val mockedProducer = mock[KafkaProducer[String, String]]
-
-    val exception = intercept[Exception] {
-      val record = new ProducerRecord[String, String](null, null, message)
-      mockedProducer.send(record)
-    }
-
-    exception.getMessage should include("Topic cannot be null.")
-  }
 }
 

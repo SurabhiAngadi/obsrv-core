@@ -12,7 +12,7 @@
         <spark.version>3.1.0</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.maj.version>2.12</scala.maj.version>
-        <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
+        <scoverage.plugin.version>1.4.0</scoverage.plugin.version>
         <java.target.runtime>11</java.target.runtime>
         <log4j.version>2.14.1</log4j.version>
     </properties>
@@ -431,27 +431,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.7</version> <!-- Use the latest version available -->
-                <executions>
-                    <execution>
-                        <id>default-prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>default-report</id>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
         </plugins>
     </build>
 </project>
