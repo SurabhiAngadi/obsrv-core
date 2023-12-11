@@ -16,7 +16,7 @@ import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
 import org.sunbird.obsrv.registry.DatasetRegistry
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
-
+import org.sunbird.obsrv.dataproducts.util.RestUtil
 
 import java.io.File
 import scala.collection.mutable
@@ -24,27 +24,10 @@ import scala.collection.mutable
 object MasterDataProcessorIndexer {
   val logger: Logger = LogManager.getLogger(MasterDataProcessorIndexer.getClass)
   val dayPeriodFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyyMMdd").withZoneUTC()
-
+  private val restUtil = RestUtil
   case class Paths(datasourceRef: String, ingestionPath: String, outputFilePath: String, timestamp: Long)
 
   case class BlobProvider(sparkProviderURIFormat: String, druidProvider: String, druidProviderPrefix: String)
-
-  def main(args: Array[String]): Unit = {
-    val configFilePath = Option(ParameterTool.fromArgs(args).get("config.file.path"))
-    val config = configFilePath.map {
-      path => ConfigFactory.parseFile(new File(path)).resolve()
-    }.getOrElse(ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment()))
-    val datasets = DatasetRegistry.getAllDatasets("master-dataset")
-    val indexedDatasets = datasets.filter(dataset => {
-      logger.info("Dataset id - " + dataset.id)
-      dataset.datasetConfig.indexData.nonEmpty && dataset.datasetConfig.indexData.get
-    })
-    val metrics = BaseMetricHelper(config)
-    indexedDatasets.foreach(dataset => {
-      metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("total_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}"))))
-      indexDataset(config, dataset, metrics, System.currentTimeMillis())
-    })
-  }
 
   def getSparkSession(dataset: Dataset): (SparkSession, SparkContext) = {
     try {
@@ -66,10 +49,14 @@ object MasterDataProcessorIndexer {
   def indexDataset(config: Config, dataset: Dataset, metrics: BaseMetricHelper, time: Long): Unit = {
     try {
       val datasources = DatasetRegistry.getDatasources(dataset.id)
-      if (datasources.isEmpty || datasources.get.size > 1) {
+      val filteredDatasource = datasources.get.filter(datasource =>
+        !datasource.metadata.aggregated
+      )
+      if (filteredDatasource.isEmpty  || filteredDatasource.size > 1) {
+        metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}")), err = "Failed to index dataset.", errMsg = "Dataset should have single datasource."))
         return
       }
-      val datasource = datasources.get.head
+      val datasource = filteredDatasource.head
       val paths = getPaths(datasource, config)
       val (spark, sc) = getSparkSession(dataset)
       val events_count = createDataFile(dataset, paths.outputFilePath, sc, spark, config)
@@ -94,7 +81,7 @@ object MasterDataProcessorIndexer {
     val timestamp = dt.getMillis
     val date = dayPeriodFormat.print(dt)
     val provider = providerFormat(config.getString("cloudStorage.provider"))
-    val cloudPrefix = if (provider == "azure") {
+    val cloudPrefix = if (config.getString("cloudStorage.provider") == "azure") {
       provider.sparkProviderURIFormat + s"""://${config.getString("cloudStorage.accountName")}.blob.core.windows.net/${config.getString("cloudStorage.container")}/"""
     } else {
       provider.sparkProviderURIFormat + s"""://${config.getString("cloudStorage.container")}/"""
@@ -122,9 +109,10 @@ object MasterDataProcessorIndexer {
   }
 
   def inputSourceSpecProvider(filePath: String, config: Config): String = {
+    logger.info("File path -> " + filePath)
     val provider = providerFormat(config.getString("cloudStorage.provider"))
     val inputSourceSpec = if (provider.druidProvider == "local")
-      s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","baseDir":"${config.getString("cloudStorage.container")}","filter":"**.json.gz"}}}}"""
+      s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","baseDir":"$filePath","filter":"**.json.gz"}}}}"""
     else s"""{"spec":{"ioConfig":{"type":"index_parallel","inputSource":{"type":"${provider.druidProvider}","objectGlob":"**.json.gz","prefixes":["$filePath"]}}}}"""
     inputSourceSpec
   }
@@ -141,19 +129,19 @@ object MasterDataProcessorIndexer {
     }
   }
 
+  @throws(classOf[Exception])
   def submitIngestionTask(ingestionSpec: String, config: Config) = {
-    val response = Unirest.post(config.getString("druid.indexer.url"))
-      .header("Content-Type", "application/json")
-      .body(ingestionSpec).asJson()
-    logger.info("Ingestion spec - " + response.getBody)
-    response.ifFailure(response => throw new Exception(s"Exception while submitting ingestion task - ${response.getBody}, with status - ${response.getStatus}"))
+    val (status, response) = restUtil.post(config.getString("druid.indexer.url"), ingestionSpec, None)
+    logger.info("Status - " + status)
+    logger.info("Ingestion spec after submitting ingestion task- " + response)
   }
 
+  @throws(classOf[Exception])
   def deleteDataSource(datasourceRef: String, config: Config): Unit = {
-    val response = Unirest.delete(config.getString("druid.datasource.delete.url") + datasourceRef)
-      .header("Content-Type", "application/json")
-      .asJson()
-    response.ifFailure(response => throw new Exception(s"Exception while deleting datasource ${datasourceRef} - ${response.getBody}, with status - ${response.getStatus}"))
+    println("Deleting datasource ......")
+    val (status, response) = restUtil.delete(config.getString("druid.datasource.delete.url") + datasourceRef, None)
+    logger.info("Status - " + status)
+    logger.info("Delete data source response- " + response)
   }
 
   def createDataFile(dataset: Dataset, outputFilePath: String, sc: SparkContext, spark: SparkSession, config: Config): Long = {
@@ -176,5 +164,24 @@ object MasterDataProcessorIndexer {
     json("obsrv_meta") = mutable.Map[String, AnyRef]("syncts" -> ts.asInstanceOf[AnyRef]).asInstanceOf[AnyRef]
     JSONUtil.serialize(json)
   }
+
+  // $COVERAGE-OFF$
+  def main(args: Array[String]): Unit = {
+    val configFilePath = Option(ParameterTool.fromArgs(args).get("config.file.path"))
+    val config = configFilePath.map {
+      path => ConfigFactory.parseFile(new File(path)).resolve()
+    }.getOrElse(ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment()))
+    val datasets = DatasetRegistry.getAllDatasets("master-dataset")
+    val indexedDatasets = datasets.filter(dataset => {
+      logger.info("Dataset id - " + dataset.id)
+      dataset.datasetConfig.indexData.nonEmpty && dataset.datasetConfig.indexData.get
+    })
+    val metrics = BaseMetricHelper(config)
+    indexedDatasets.foreach(dataset => {
+      metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("total_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}"))))
+      indexDataset(config, dataset, metrics, System.currentTimeMillis())
+    })
+  }
+  // $COVERAGE-ON$
 }
 

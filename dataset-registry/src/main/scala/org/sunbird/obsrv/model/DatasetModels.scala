@@ -53,8 +53,11 @@ object DatasetModels {
   case class DatasetSourceConfig(@JsonProperty("id") id: String, @JsonProperty("dataset_id") datasetId: String,
                                  @JsonProperty("connector_type") connectorType: String, @JsonProperty("connector_config") connectorConfig: ConnectorConfig,
                                  @JsonProperty("status") status: String)
+
+  case class DataSourceMetadata(@JsonProperty("aggregated") aggregated: Boolean, @JsonProperty("granularity") granularity: String)
   case class DataSource(@JsonProperty("datasource") datasource: String, @JsonProperty("dataset_id") datasetId: String,
-                        @JsonProperty("ingestion_spec") ingestionSpec: String, @JsonProperty("datasource_ref") datasourceRef: String)
+                        @JsonProperty("ingestion_spec") ingestionSpec: String, @JsonProperty("datasource_ref") datasourceRef: String,
+                        @JsonProperty("metadata") metadata: DataSourceMetadata)
 
 
 }

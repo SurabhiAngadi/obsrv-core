@@ -3,7 +3,7 @@ package org.sunbird.obsrv.service
 import com.typesafe.config.{Config, ConfigFactory}
 import org.slf4j.LoggerFactory
 import org.sunbird.obsrv.core.util.{JSONUtil, PostgresConnect, PostgresConnectionConfig}
-import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, DataSource, Dataset, DatasetConfig, DatasetSourceConfig, DatasetTransformation, DedupConfig, DenormConfig, ExtractionConfig, RouterConfig, TransformationFunction, ValidationConfig}
+import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, DataSource, DataSourceMetadata, Dataset, DatasetConfig, DatasetSourceConfig, DatasetTransformation, DedupConfig, DenormConfig, ExtractionConfig, RouterConfig, TransformationFunction, ValidationConfig}
 
 import java.io.File
 import java.sql.ResultSet
@@ -160,8 +160,9 @@ object DatasetRegistryService {
     val datasetId = rs.getString("dataset_id")
     val ingestionSpec = rs.getString("ingestion_spec")
     val datasourceRef = rs.getString("datasource_ref")
+    val metaData = rs.getString("metadata")
 
-    DataSource(datasource, datasetId, ingestionSpec, datasourceRef)
+    DataSource(datasource, datasetId, ingestionSpec, datasourceRef, JSONUtil.deserialize[DataSourceMetadata](metaData))
   }
 
   private def parseDatasetTransformation(rs: ResultSet): DatasetTransformation = {
