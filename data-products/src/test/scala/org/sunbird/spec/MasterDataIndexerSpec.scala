@@ -9,36 +9,24 @@ import org.joda.time.{DateTime, DateTimeZone}
 import org.mockito.Mockito.{doThrow, times, verify, when}
 import org.mockito.MockitoSugar.mock
 import org.sunbird.obsrv.registry.DatasetRegistry
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.sunbird.fixture.EventFixture
 import org.sunbird.obsrv.core.cache.RedisConnect
-import org.sunbird.obsrv.core.util.{JSONUtil, PostgresConnect, PostgresConnectionConfig, RestUtil}
+import org.sunbird.obsrv.core.util.{PostgresConnect, PostgresConnectionConfig}
 import org.sunbird.obsrv.dataproducts.helper.{BaseMetricHelper, KafkaMessageProducer}
 import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer
-import org.sunbird.obsrv.dataproducts.model.{Actor, Context, Edata, JobMetric, MetricLabel, MetricObject, Pdata}
-import org.sunbird.obsrv.model.DatasetModels.DataSource
+import org.sunbird.obsrv.dataproducts.model.{Edata, JobMetric, MetricLabel}
 import redis.embedded.RedisServer
 
-import java.util.{Properties, UUID}
 import scala.collection.JavaConverters._
-import okhttp3.mockwebserver.{MockResponse, MockWebServer}
-import org.apache.http.{HttpEntity, ProtocolVersion}
-import org.apache.http.client.methods.{CloseableHttpResponse, HttpDelete, HttpPost}
-import org.apache.http.impl.client.CloseableHttpClient
-import org.apache.http.message.BasicStatusLine
-import org.apache.kafka.clients.consumer.{KafkaConsumer, OffsetAndMetadata}
-import org.apache.kafka.clients.producer.{KafkaProducer, MockProducer, Producer, ProducerRecord}
-import org.apache.kafka.common.TopicPartition
+import okhttp3.mockwebserver.MockWebServer
+import org.apache.kafka.clients.producer.ProducerRecord
 
 import scala.concurrent.duration.FiniteDuration
-import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
-import org.apache.log4j.LogManager
-import org.apache.logging.log4j.Logger
+import org.apache.kafka.common.serialization.StringDeserializer
 import org.mockito.ArgumentMatchers.any
-import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer.Paths
-import org.sunbird.obsrv.dataproducts.util.{HTTPService, RestUtil}
+import org.sunbird.obsrv.dataproducts.util.HTTPService
 
-import java.io.ByteArrayInputStream
 import scala.collection.mutable.ListBuffer
 
 class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matchers {
@@ -48,6 +36,7 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   val mockMetrics = mock[BaseMetricHelper]
   val mockedRestUtil: HTTPService = mock[HTTPService]
   val server = new MockWebServer()
+  val pwd = System.getProperty("user.dir")
 
   val config: Config = ConfigFactory.load("test.conf")
   val postgresConfig = PostgresConnectionConfig(
@@ -146,13 +135,14 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   it should "index datasets for single datasource and generate metrics for local storage" in {
     val dataset = DatasetRegistry.getDataset("md1")
     val datasources = DatasetRegistry.getDatasources("md1")
-    val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef("/home/sankethika/obsrv-data"))
-
+    val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef(s"${pwd}/obsrv-data"))
+    val start_time = System.currentTimeMillis()
     MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
-
+    val end_time = System.currentTimeMillis()
+    val total_time = end_time - start_time
     assert(datasources.get.isEmpty == false)
     assert(datasources.get.size == 1)
-    verify(mockMetrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("success_dataset_count") -> 1, mockMetrics.getMetricName("total_time_taken") -> System.currentTimeMillis(), mockMetrics.getMetricName("total_events_processed") -> 5), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}"))))
+    verify(mockMetrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("success_dataset_count") -> 1, mockMetrics.getMetricName("total_time_taken") -> total_time, mockMetrics.getMetricName("total_events_processed") -> 5), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}"))))
   }
 
   it should "not index datasets for empty datasource and exit" in {
@@ -266,48 +256,6 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val helper = BaseMetricHelper(jobConfig)
     assert(helper.getMetricName(" ") != "total_dataset_count")
   }
-
-
-  //  it should "submit ingestion spec successfully" in {
-  //    val ingestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"datasource1-${date}"},"ioConfig":{"type":"index_parallel","inputSource":{"type":"local","baseDir":"/home/sankethika/obsrv-data","filter":"**.json.gz"}},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
-  //    val expectedResponse = """{"task":"index_parallel_telemetry-content-data.1_DAY-20231204_pjooobcc_2023-12-04T10:39:19.669Z"}"""
-  //    val expectedStatus = 200
-  //    val httpClientMock = mock[CloseableHttpClient]
-  //    val httpResponseMock = mock[CloseableHttpResponse]
-  //    val entityMock = mock[HttpEntity]
-  //
-  //    when(httpClientMock.execute(any[HttpPost]())).thenReturn(httpResponseMock)
-  //    when(httpResponseMock.getEntity).thenReturn(entityMock)
-  //    when(httpResponseMock.getStatusLine).thenReturn(new BasicStatusLine(new ProtocolVersion("HTTP", 1, 1), 200, ""))
-  //    when(entityMock.getContent).thenReturn(new ByteArrayInputStream(expectedResponse.getBytes("UTF-8")))
-  //
-  //    mockServer.url(jobConfig.getString("druid.indexer.url"))
-  //    mockServer.enqueue(new MockResponse().setBody(expectedResponse))
-  //
-  //    //    val (actualstatus, actualResponse) =  RestUtil.post(jobConfig.getString("druid.indexer.url"), ingestionSpec, None)
-  //    //
-  //    //    assert(actualstatus == expectedStatus)
-  //    //    assert(actualResponse == expectedResponse)
-  //  }
-
-  //  it should "not delete dataSourceRef and throw exception" in {
-  //    val expectedResponse = "Connect to localhost:8888 [localhost/127.0.0.1] failed: Connection refused (Connection refused)"
-  //    val expectedStatus = 500
-  //    val httpClientMock = mock[CloseableHttpClient]
-  //    val httpResponseMock = mock[CloseableHttpResponse]
-  //    val entityMock = mock[HttpEntity]
-  //
-  //    when(httpClientMock.execute(any[HttpDelete]())).thenReturn(httpResponseMock)
-  //    when(httpResponseMock.getEntity).thenReturn(entityMock)
-  //    when(httpResponseMock.getStatusLine).thenReturn(new BasicStatusLine(new ProtocolVersion("HTTP", 1, 1), 200, ""))
-  //    when(entityMock.getContent).thenReturn(new ByteArrayInputStream(expectedResponse.getBytes("UTF-8")))
-  //
-  //    val (actualStatus, actualResponse) = RestUtil.delete(jobConfig.getString("druid.indexer.url"), None)
-  //
-  //    assert(actualStatus == expectedStatus)
-  //    assert(actualResponse == expectedResponse)
-  //  }
-
 
 }
 
