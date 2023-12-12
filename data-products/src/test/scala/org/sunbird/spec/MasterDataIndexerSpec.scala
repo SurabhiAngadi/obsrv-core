@@ -27,11 +27,11 @@ import org.apache.http.client.methods.{CloseableHttpResponse, HttpDelete, HttpPo
 import org.apache.http.impl.client.CloseableHttpClient
 import org.apache.http.message.BasicStatusLine
 import org.apache.kafka.clients.consumer.{KafkaConsumer, OffsetAndMetadata}
-import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord}
+import org.apache.kafka.clients.producer.{KafkaProducer, MockProducer, Producer, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 
 import scala.concurrent.duration.FiniteDuration
-import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.apache.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.mockito.ArgumentMatchers.any
@@ -45,7 +45,7 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
 
   private val jobConfig: Config = ConfigFactory.load("masterdata-indexer-test.conf").withFallback(ConfigFactory.systemEnvironment())
 
-  val metrics = mock[BaseMetricHelper]
+  val mockMetrics = mock[BaseMetricHelper]
   val mockedRestUtil: HTTPService = mock[HTTPService]
   val server = new MockWebServer()
 
@@ -148,26 +148,26 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val datasources = DatasetRegistry.getDatasources("md1")
     val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef("/home/sankethika/obsrv-data"))
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
 
     assert(datasources.get.isEmpty == false)
     assert(datasources.get.size == 1)
-    verify(metrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("success_dataset_count") -> 1, metrics.getMetricName("total_time_taken") -> System.currentTimeMillis(), metrics.getMetricName("total_events_processed") -> 5), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}"))))
+    verify(mockMetrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("success_dataset_count") -> 1, mockMetrics.getMetricName("total_time_taken") -> System.currentTimeMillis(), mockMetrics.getMetricName("total_events_processed") -> 5), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}"))))
   }
 
   it should "not index datasets for empty datasource and exit" in {
     val dataset = DatasetRegistry.getDataset("md3")
     val datasources = DatasetRegistry.getDatasources("md3")
     println("Datasource - " + datasources)
-    MasterDataProcessorIndexer.indexDataset(jobConfig, dataset.get, metrics, System.currentTimeMillis())
+    MasterDataProcessorIndexer.indexDataset(jobConfig, dataset.get, mockMetrics, System.currentTimeMillis())
 
-    verify(metrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Dataset should have single datasource."))
+    verify(mockMetrics).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Dataset should have single datasource."))
   }
 
   it should "not index datasets when there is no data in redis and generate metrics" in {
     val dataset = DatasetRegistry.getDataset("md2")
-    MasterDataProcessorIndexer.indexDataset(jobConfig, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(2)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Datasource does not support writing empty or nested empty schemas.Please make sure the data schema has at least one or more column(s)."))
+    MasterDataProcessorIndexer.indexDataset(jobConfig, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(2)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Datasource does not support writing empty or nested empty schemas.Please make sure the data schema has at least one or more column(s)."))
   }
 
   it should "not establish spark session when invalid redis configurations are provided" in {
@@ -185,40 +185,40 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val provider = jobConfig.withValue("cloudStorage.provider", ConfigValueFactory.fromAnyRef("aws"))
     val dataset = DatasetRegistry.getDataset("md1")
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(3)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain."))
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(3)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain."))
   }
 
   it should "index datasets for single datasource and generate metrics for azure" in {
     val provider = jobConfig.withValue("cloudStorage.provider", ConfigValueFactory.fromAnyRef("azure"))
     val dataset = DatasetRegistry.getDataset("md1")
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(4)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "No FileSystem for scheme: wasbs"))
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(4)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "No FileSystem for scheme: wasbs"))
   }
 
   it should "index datasets for single datasource and generate metrics for gcloud" in {
     val provider = jobConfig.withValue("cloudStorage.provider", ConfigValueFactory.fromAnyRef("gcloud"))
     val dataset = DatasetRegistry.getDataset("md1")
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(5)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "No FileSystem for scheme: gs"))
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(5)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "No FileSystem for scheme: gs"))
   }
 
   it should "index datasets for single datasource and generate metrics for cephs3" in {
     val provider = jobConfig.withValue("cloudStorage.provider", ConfigValueFactory.fromAnyRef("cephs3"))
     val dataset = DatasetRegistry.getDataset("md1")
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(6)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain"))
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(6)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain"))
   }
 
   it should "index datasets for single datasource and generate metrics for oci" in {
     val provider = jobConfig.withValue("cloudStorage.provider", ConfigValueFactory.fromAnyRef("oci"))
     val dataset = DatasetRegistry.getDataset("md1")
 
-    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, metrics, System.currentTimeMillis())
-    verify(metrics, times(7)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain."))
+    MasterDataProcessorIndexer.indexDataset(provider, dataset.get, mockMetrics, System.currentTimeMillis())
+    verify(mockMetrics, times(7)).generate(new DateTime(DateTimeZone.UTC).getMillis, dataset.get.id, Edata(metric = Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", "Unable to load AWS credentials from any provider in the chain."))
   }
 
   it should "throw exception for unknown provider" in {
@@ -257,27 +257,38 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     verify(mockProducer.send(record))
   }
 
-//  it should "submit ingestion spec successfully" in {
-//    val ingestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"datasource1-${date}"},"ioConfig":{"type":"index_parallel","inputSource":{"type":"local","baseDir":"/home/sankethika/obsrv-data","filter":"**.json.gz"}},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
-//    val expectedResponse = """{"task":"index_parallel_telemetry-content-data.1_DAY-20231204_pjooobcc_2023-12-04T10:39:19.669Z"}"""
-//    val expectedStatus = 200
-//    val httpClientMock = mock[CloseableHttpClient]
-//    val httpResponseMock = mock[CloseableHttpResponse]
-//    val entityMock = mock[HttpEntity]
-//
-//    when(httpClientMock.execute(any[HttpPost]())).thenReturn(httpResponseMock)
-//    when(httpResponseMock.getEntity).thenReturn(entityMock)
-//    when(httpResponseMock.getStatusLine).thenReturn(new BasicStatusLine(new ProtocolVersion("HTTP", 1, 1), 200, ""))
-//    when(entityMock.getContent).thenReturn(new ByteArrayInputStream(expectedResponse.getBytes("UTF-8")))
-//
-//    mockServer.url(jobConfig.getString("druid.indexer.url"))
-//    mockServer.enqueue(new MockResponse().setBody(expectedResponse))
-//
-//    //    val (actualstatus, actualResponse) =  RestUtil.post(jobConfig.getString("druid.indexer.url"), ingestionSpec, None)
-//    //
-//    //    assert(actualstatus == expectedStatus)
-//    //    assert(actualResponse == expectedResponse)
-//  }
+  "BaseMetricsHelper" should "provide appropriate metrics name" in {
+    val helper = BaseMetricHelper(jobConfig)
+    assert(helper.getMetricName("total_dataset_count") === "total_dataset_count")
+  }
+
+  "BaseMetricsHelper" should "not provide appropriate metrics name" in {
+    val helper = BaseMetricHelper(jobConfig)
+    assert(helper.getMetricName(" ") != "total_dataset_count")
+  }
+
+
+  //  it should "submit ingestion spec successfully" in {
+  //    val ingestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"datasource1-${date}"},"ioConfig":{"type":"index_parallel","inputSource":{"type":"local","baseDir":"/home/sankethika/obsrv-data","filter":"**.json.gz"}},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
+  //    val expectedResponse = """{"task":"index_parallel_telemetry-content-data.1_DAY-20231204_pjooobcc_2023-12-04T10:39:19.669Z"}"""
+  //    val expectedStatus = 200
+  //    val httpClientMock = mock[CloseableHttpClient]
+  //    val httpResponseMock = mock[CloseableHttpResponse]
+  //    val entityMock = mock[HttpEntity]
+  //
+  //    when(httpClientMock.execute(any[HttpPost]())).thenReturn(httpResponseMock)
+  //    when(httpResponseMock.getEntity).thenReturn(entityMock)
+  //    when(httpResponseMock.getStatusLine).thenReturn(new BasicStatusLine(new ProtocolVersion("HTTP", 1, 1), 200, ""))
+  //    when(entityMock.getContent).thenReturn(new ByteArrayInputStream(expectedResponse.getBytes("UTF-8")))
+  //
+  //    mockServer.url(jobConfig.getString("druid.indexer.url"))
+  //    mockServer.enqueue(new MockResponse().setBody(expectedResponse))
+  //
+  //    //    val (actualstatus, actualResponse) =  RestUtil.post(jobConfig.getString("druid.indexer.url"), ingestionSpec, None)
+  //    //
+  //    //    assert(actualstatus == expectedStatus)
+  //    //    assert(actualResponse == expectedResponse)
+  //  }
 
   //  it should "not delete dataSourceRef and throw exception" in {
   //    val expectedResponse = "Connect to localhost:8888 [localhost/127.0.0.1] failed: Connection refused (Connection refused)"
