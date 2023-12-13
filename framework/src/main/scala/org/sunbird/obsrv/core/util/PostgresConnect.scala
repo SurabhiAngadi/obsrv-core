@@ -73,7 +73,6 @@ class PostgresConnect(config: PostgresConnectionConfig) {
 
   def executeQuery(query:String):ResultSet = statement.executeQuery(query)
 
-  def executeUpdate(query:String):Unit = statement.executeUpdate(query)
 }
 
 

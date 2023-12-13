@@ -23,10 +23,13 @@ case class KafkaMessageProducer(config: Config) {
     try {
       val record = new ProducerRecord[String, String](topic, key, message)
       producer.send(record)
-    } catch {
+    }
+      // $COVERAGE-OFF$
+    catch {
       case e: Exception =>
         logger.error("Exception occured while sending message to kafka", e.getMessage)
         e.printStackTrace()
     }
+    // $COVERAGE-ON$
   }
 }

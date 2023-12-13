@@ -2,7 +2,6 @@ package org.sunbird.obsrv.dataproducts.job
 
 import com.redislabs.provider.redis._
 import com.typesafe.config.{Config, ConfigFactory}
-import kong.unirest.Unirest
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
@@ -24,7 +23,8 @@ import scala.collection.mutable
 object MasterDataProcessorIndexer {
   val logger: Logger = LogManager.getLogger(MasterDataProcessorIndexer.getClass)
   val dayPeriodFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyyMMdd").withZoneUTC()
-  private val restUtil = RestUtil
+  private val restUtil = RestUtil()
+  val pwd = System.getProperty("user.dir")
   case class Paths(datasourceRef: String, ingestionPath: String, outputFilePath: String, timestamp: Long)
 
   case class BlobProvider(sparkProviderURIFormat: String, druidProvider: String, druidProviderPrefix: String)
@@ -48,11 +48,12 @@ object MasterDataProcessorIndexer {
 
   def indexDataset(config: Config, dataset: Dataset, metrics: BaseMetricHelper, time: Long): Unit = {
     try {
+      println("Dataset id: "+dataset.id)
       val datasources = DatasetRegistry.getDatasources(dataset.id)
-      val filteredDatasource = datasources.get.filter(datasource =>
-        !datasource.metadata.aggregated
+      val filteredDatasource = datasources.get.filter( datasource =>
+        !datasource.metadata.get.aggregated
       )
-      if (filteredDatasource.isEmpty  || filteredDatasource.size > 1) {
+      if (filteredDatasource.isEmpty || filteredDatasource.size > 1) {
         metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}")), err = "Failed to index dataset.", errMsg = "Dataset should have single datasource."))
         return
       }
@@ -128,20 +129,13 @@ object MasterDataProcessorIndexer {
       case _ => throw new Exception("Unsupported provider")
     }
   }
-
-  @throws(classOf[Exception])
+  @throws[Exception]
   def submitIngestionTask(ingestionSpec: String, config: Config) = {
-    val (status, response) = restUtil.post(config.getString("druid.indexer.url"), ingestionSpec, None)
-    logger.info("Status - " + status)
-    logger.info("Ingestion spec after submitting ingestion task- " + response)
+    restUtil.post(config.getString("druid.indexer.url"), ingestionSpec, None)
   }
-
-  @throws(classOf[Exception])
+  @throws[Exception]
   def deleteDataSource(datasourceRef: String, config: Config): Unit = {
-    println("Deleting datasource ......")
-    val (status, response) = restUtil.delete(config.getString("druid.datasource.delete.url") + datasourceRef, None)
-    logger.info("Status - " + status)
-    logger.info("Delete data source response- " + response)
+    restUtil.delete(config.getString("druid.datasource.delete.url") + datasourceRef, None)
   }
 
   def createDataFile(dataset: Dataset, outputFilePath: String, sc: SparkContext, spark: SparkSession, config: Config): Long = {
