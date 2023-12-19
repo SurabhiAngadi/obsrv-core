@@ -22,7 +22,6 @@ object MasterDataProcessorIndexer {
   val logger: Logger = LogManager.getLogger(MasterDataProcessorIndexer.getClass)
   val dayPeriodFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyyMMdd").withZoneUTC()
   private val restUtil = RestUtil()
-  val pwd = System.getProperty("user.dir")
   case class Paths(datasourceRef: String, ingestionPath: String, outputFilePath: String, timestamp: Long)
 
   case class BlobProvider(sparkProviderURIFormat: String, druidProvider: String, druidProviderPrefix: String)
@@ -66,8 +65,8 @@ object MasterDataProcessorIndexer {
         deleteDataSource(datasource.datasourceRef, config)
       }
       val end_time = System.currentTimeMillis()
-      val success_time = end_time - time
-      metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("success_dataset_count") -> 1, metrics.getMetricName("total_time_taken") -> success_time, metrics.getMetricName("total_events_processed") -> events_count), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}"))))
+      val total_time_taken = end_time - time
+      metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("success_dataset_count") -> 1, metrics.getMetricName("total_time_taken") -> total_time_taken, metrics.getMetricName("total_events_processed") -> events_count), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}"))))
     } catch {
       case e: Exception =>
         metrics.generate(ets = new DateTime(DateTimeZone.UTC).getMillis, datasetId = dataset.id, edata = Edata(metric = Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}")), err = "Failed to index dataset.", errMsg = e.getMessage))
@@ -103,8 +102,7 @@ object MasterDataProcessorIndexer {
   }
 
   def deltaIngestionSpecProvider(datasourceRef: String): String = {
-    val deltaIngestionSpec = s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"$datasourceRef"},"ioConfig":{"type":"index_parallel"},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
-    deltaIngestionSpec
+    s"""{"type":"index_parallel","spec":{"dataSchema":{"dataSource":"$datasourceRef"},"ioConfig":{"type":"index_parallel"},"tuningConfig":{"type":"index_parallel","maxRowsInMemory":500000,"forceExtendableShardSpecs":false,"logParseExceptions":true}}}"""
   }
 
   def inputSourceSpecProvider(filePath: String, config: Config): String = {
