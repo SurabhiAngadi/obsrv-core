@@ -1,8 +1,8 @@
-package org.sunbird.obsrv.dataproducts.job
+package org.sunbird.obsrv.dataproducts
 
 import com.redislabs.provider.redis._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.flink.api.java.utils.ParameterTool
+import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
@@ -11,14 +11,11 @@ import org.json4s.native.JsonMethods._
 import org.sunbird.obsrv.core.util.JSONUtil
 import org.sunbird.obsrv.dataproducts.helper.BaseMetricHelper
 import org.sunbird.obsrv.dataproducts.model.{Edata, MetricLabel}
-import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
-import org.sunbird.obsrv.registry.DatasetRegistry
-import org.apache.logging.log4j.LogManager
-import org.apache.logging.log4j.Logger
 import org.sunbird.obsrv.dataproducts.util.RestUtil
+import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
 import org.sunbird.obsrv.model.DatasetStatus
+import org.sunbird.obsrv.registry.DatasetRegistry
 
-import java.io.File
 import scala.collection.mutable
 
 object MasterDataProcessorIndexer {

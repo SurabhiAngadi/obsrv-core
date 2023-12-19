@@ -14,7 +14,6 @@ import org.sunbird.fixture.EventFixture
 import org.sunbird.obsrv.core.cache.RedisConnect
 import org.sunbird.obsrv.core.util.{PostgresConnect, PostgresConnectionConfig}
 import org.sunbird.obsrv.dataproducts.helper.{BaseMetricHelper, KafkaMessageProducer}
-import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer
 import org.sunbird.obsrv.dataproducts.model.{Edata, JobMetric, MetricLabel}
 import redis.embedded.RedisServer
 
@@ -25,6 +24,7 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import scala.concurrent.duration.FiniteDuration
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.mockito.ArgumentMatchers.any
+import org.sunbird.obsrv.dataproducts.MasterDataProcessorIndexer
 import org.sunbird.obsrv.dataproducts.util.{HTTPService, RestUtil}
 
 import scala.collection.mutable.ListBuffer
@@ -38,14 +38,13 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   val server = new MockWebServer()
   val pwd = System.getProperty("user.dir")
 
-  val config: Config = ConfigFactory.load("test.conf")
   val postgresConfig = PostgresConnectionConfig(
-    user = config.getString("postgres.user"),
-    password = config.getString("postgres.password"),
+    user = jobConfig.getString("postgres.user"),
+    password = jobConfig.getString("postgres.password"),
     database = "postgres",
-    host = config.getString("postgres.host"),
-    port = config.getInt("postgres.port"),
-    maxConnections = config.getInt("postgres.maxConnections")
+    host = jobConfig.getString("postgres.host"),
+    port = jobConfig.getInt("postgres.port"),
+    maxConnections = jobConfig.getInt("postgres.maxConnections")
   )
 
   var embeddedPostgres: EmbeddedPostgres = _
