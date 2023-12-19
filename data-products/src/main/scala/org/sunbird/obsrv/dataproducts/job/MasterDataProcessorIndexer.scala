@@ -16,6 +16,7 @@ import org.sunbird.obsrv.registry.DatasetRegistry
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.sunbird.obsrv.dataproducts.util.RestUtil
+import org.sunbird.obsrv.model.DatasetStatus
 
 import java.io.File
 import scala.collection.mutable
@@ -161,14 +162,11 @@ object MasterDataProcessorIndexer {
 
   // $COVERAGE-OFF$
   def main(args: Array[String]): Unit = {
-    val configFilePath = Option(ParameterTool.fromArgs(args).get("config.file.path"))
-    val config = configFilePath.map {
-      path => ConfigFactory.parseFile(new File(path)).resolve()
-    }.getOrElse(ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment()))
+    val config = ConfigFactory.load("masterdata-indexer.conf").withFallback(ConfigFactory.systemEnvironment())
     val datasets = DatasetRegistry.getAllDatasets("master-dataset")
     val indexedDatasets = datasets.filter(dataset => {
       logger.info("Dataset id - " + dataset.id)
-      dataset.datasetConfig.indexData.nonEmpty && dataset.datasetConfig.indexData.get
+      dataset.datasetConfig.indexData.nonEmpty && dataset.datasetConfig.indexData.get && dataset.status == DatasetStatus.Live
     })
     val metrics = BaseMetricHelper(config)
     indexedDatasets.foreach(dataset => {
@@ -178,4 +176,3 @@ object MasterDataProcessorIndexer {
   }
   // $COVERAGE-ON$
 }
-

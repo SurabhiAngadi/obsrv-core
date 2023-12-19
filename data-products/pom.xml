@@ -33,7 +33,7 @@
                     <artifactId>xbean-asm6-shaded</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId> org.apache.zookeeper</groupId>
+                    <groupId>org.apache.zookeeper</groupId>
                     <artifactId>zookeeper</artifactId>
                 </exclusion>
             </exclusions>
@@ -78,6 +78,12 @@
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-scala_${scala.maj.version}</artifactId>
             <version>2.15.2</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -174,7 +180,7 @@
                     <artifactId>avro</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId> org.apache.zookeeper</groupId>
+                    <groupId>org.apache.zookeeper</groupId>
                     <artifactId>zookeeper</artifactId>
                 </exclusion>
             </exclusions>
