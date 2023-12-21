@@ -3,7 +3,7 @@ package org.sunbird.obsrv.dataproducts.helper
 import com.typesafe.config.Config
 import org.joda.time.{DateTime, DateTimeZone}
 import org.sunbird.obsrv.core.util.JSONUtil
-import org.sunbird.obsrv.dataproducts.job.MasterDataProcessorIndexer.dayPeriodFormat
+import org.sunbird.obsrv.dataproducts.MasterDataProcessorIndexer.dayPeriodFormat
 import org.sunbird.obsrv.dataproducts.model.{Actor, Context, Edata, IJobMetric, JobMetric, MetricObject, Pdata}
 
 case class BaseMetricHelper(config: Config) {
@@ -31,12 +31,12 @@ case class BaseMetricHelper(config: Config) {
     MetricObject(id = datasetId, `type` = "Dataset", ver = "1.0.0")
   }
 
-  def generate(ets: Long, datasetId: String, edata: Edata) = {
+  def generate(datasetId: String, edata: Edata) = {
     val `object` = getObject(datasetId)
     val actor = Actor(id = "MasterDataProcessorIndexerJob", `type` = "SYSTEM")
     val pdata = Pdata(id = "DataProducts", pid = "MasterDataProcessorIndexerJob", ver = "1.0.0")
     val context = Context(env = config.getString("env"), pdata = pdata)
-    val metric = JobMetric(ets = ets, actor = actor, context = context, `object` = `object`, edata = edata)
+    val metric = JobMetric(ets = new DateTime(DateTimeZone.UTC).getMillis, actor = actor, context = context, `object` = `object`, edata = edata)
     this.sync(metric)
   }
 }
