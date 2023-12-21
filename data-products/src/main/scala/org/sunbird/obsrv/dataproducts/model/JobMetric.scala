@@ -6,12 +6,13 @@ import org.joda.time.{DateTime, DateTimeZone}
 import java.sql.Timestamp
 import java.sql.Timestamp
 import java.util.UUID
+import scala.collection.mutable
 
 case class Actor(id: String, `type`: String)
 
 case class Context(env: String, pdata: Pdata)
 
-case class Edata(metric: Map[String, Any], labels: Seq[MetricLabel], err: String = null, errMsg: String = null)
+case class Edata(metric: mutable.Map[String, Any], labels: Seq[MetricLabel], err: String = null, errMsg: String = null)
 
 case class MetricLabel(key: String, value: String)
 
