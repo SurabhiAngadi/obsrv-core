@@ -1,6 +1,5 @@
 package org.sunbird.obsrv.spec
 
-import com.redislabs.provider.redis._
 import com.typesafe.config.{Config, ConfigFactory, ConfigValueFactory}
 import io.github.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig, duration2JavaDuration}
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
@@ -149,9 +148,9 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val datasources = DatasetRegistry.getDatasources("md1")
     val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef(s"/${pwd}/obsrv-data"))
     MasterDataProcessorIndexer.processDatasets(provider)
-    val (timetaken, result) = CommonUtils.getExecutionTime(MasterDataProcessorIndexer.indexDataset(provider,dataset.get,datasources.get.head,mockMetrics, spark, sc))
+    val (timetaken, result) = CommonUtils.getExecutionTime(MasterDataProcessorIndexer.indexDataset(provider, dataset.get, datasources.get.head, mockMetrics, spark, sc))
     result.metric.put(mockMetrics.getMetricName("total_time_taken"), timetaken)
-    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count")->1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
+    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
   }
 
   it should "index datasets for multiple datasources and aggregated is false for only one of them" in {
@@ -162,7 +161,7 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef(s"${pwd}/obsrv-data"))
     MasterDataProcessorIndexer.processDatasets(provider)
     assert(datasources.get.size != 1)
-    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count")->1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
+    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
   }
 
   it should "not index datasets for multiple datasources and aggregated is true" in {
@@ -171,7 +170,7 @@ class MasterDataIndexerSpec extends FlatSpec with BeforeAndAfterAll with Matcher
     val provider = jobConfig.withValue("cloudStorage.container", ConfigValueFactory.fromAnyRef(s"${pwd}/obsrv-data"))
     MasterDataProcessorIndexer.processDatasets(provider)
     assert(datasources.get.size != 1)
-    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count")->1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
+    verify(mockMetrics).generate(dataset.get.id, Edata(mutable.Map(mockMetrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.get.id), MetricLabel("cloud", s"${jobConfig.getString("cloudStorage.provider")}")), "Failed to index dataset.,", ""))
   }
 
   it should "not index datasets when there is no data in redis and generate metrics" in {

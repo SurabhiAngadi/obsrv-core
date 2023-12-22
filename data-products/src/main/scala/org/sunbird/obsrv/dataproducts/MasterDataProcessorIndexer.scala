@@ -6,10 +6,8 @@ import kong.unirest.Unirest
 import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.json4s.native.JsonMethods._
-import org.sunbird.obsrv.core.util.JSONUtil
 import org.sunbird.obsrv.dataproducts.helper.BaseMetricHelper
 import org.sunbird.obsrv.dataproducts.model.{Edata, MetricLabel}
 import org.sunbird.obsrv.dataproducts.util.{CommonUtils, StorageUtil}
@@ -29,7 +27,7 @@ object MasterDataProcessorIndexer {
       val paths = StorageUtil.getPaths(datasource, config)
       val events_count = createDataFile(dataset, paths.outputFilePath, spark, sc, config)
       val ingestionSpec = updateIngestionSpec(datasource, paths.datasourceRef, paths.ingestionPath, config)
-      if (events_count > 0) {
+      if (events_count > 0L) {
         submitIngestionTask(ingestionSpec, config)
       }
       DatasetRegistry.updateDatasourceRef(datasource, paths.datasourceRef)
@@ -55,6 +53,7 @@ object MasterDataProcessorIndexer {
     val modIngestionSpec = ingestionSpec merge deltaJson merge inputSourceJson
     compact(render(modIngestionSpec))
   }
+
   def submitIngestionTask(ingestionSpec: String, config: Config) = {
     logger.debug("Submitting ingestion spec to druid...")
     val response = Unirest.post(config.getString("druid.indexer.url"))
@@ -83,10 +82,11 @@ object MasterDataProcessorIndexer {
     val rdd = sc.fromRedisKV("*")(redisConfig = redisConfig, readWriteConfig = readWriteConf).map(
       f => CommonUtils.processEvent(f._2, ts)
     )
-    val noOfRecords = rdd.count()
-    if (noOfRecords > 0) {
-      logger.info("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
+    var noOfRecords = 0L
+    if (!rdd.isEmpty()) {
       val df = spark.read.json(rdd)
+      noOfRecords = df.count()
+      logger.info("Dataset - " + dataset.id + " No. of records - " + noOfRecords)
       df.coalesce(20).write.mode("overwrite").option("compression", "gzip").json(outputFilePath)
     }
     noOfRecords

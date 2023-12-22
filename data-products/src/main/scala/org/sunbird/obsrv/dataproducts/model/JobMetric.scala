@@ -1,10 +1,5 @@
 package org.sunbird.obsrv.dataproducts.model
 
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
-import org.joda.time.{DateTime, DateTimeZone}
-
-import java.sql.Timestamp
-import java.sql.Timestamp
 import java.util.UUID
 import scala.collection.mutable
 
@@ -29,5 +24,6 @@ trait IJobMetric {
   val `object`: MetricObject
   val edata: Edata
 }
-case class JobMetric(eid: String = "METRIC",ets: Long, mid: String = UUID.randomUUID().toString, actor: Actor, context: Context, `object`: MetricObject, edata: Edata) extends IJobMetric
+
+case class JobMetric(eid: String = "METRIC", ets: Long, mid: String = UUID.randomUUID().toString, actor: Actor, context: Context, `object`: MetricObject, edata: Edata) extends IJobMetric
 

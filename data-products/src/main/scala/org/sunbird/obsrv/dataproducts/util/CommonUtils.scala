@@ -1,8 +1,6 @@
 package org.sunbird.obsrv.dataproducts.util
 
-import org.joda.time.{DateTime, DateTimeZone}
 import org.sunbird.obsrv.core.util.JSONUtil
-import org.sunbird.obsrv.dataproducts.model.{Edata, MetricLabel}
 import org.sunbird.obsrv.model.DatasetModels.{DataSource, Dataset}
 import org.sunbird.obsrv.registry.DatasetRegistry
 
@@ -33,7 +31,6 @@ object CommonUtils {
     }
     filteredDatasource.head
   }
-
 
 
 }
