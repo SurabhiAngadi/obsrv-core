@@ -112,8 +112,6 @@ object MasterDataProcessorIndexer {
         val (runTime, result) = CommonUtils.getExecutionTime(indexDataset(config, dataset, datasource, metrics, spark, sc))
         result.metric.put(metrics.getMetricName("total_time_taken"), runTime)
         metrics.generate(datasetId = dataset.id, edata = result)
-      } else {
-        metrics.generate(datasetId = dataset.id, edata = Edata(metric = mutable.Map(metrics.getMetricName("failure_dataset_count") -> 1), labels = List(MetricLabel("job", "MasterDataIndexer"), MetricLabel("datasetId", dataset.id), MetricLabel("cloud", s"${config.getString("cloudStorage.provider")}")), err = "Failed to index dataset.", errMsg = "Dataset should have single datasource."))
       }
     })
     sc.stop()
