@@ -14,10 +14,13 @@ jobs:
       - name: Fetch tag
         id: tag-checker
         run: |
-          pwd
-          tag_message=$(git tag -l --format='%(contents)' ${{ github.ref }})
-          ref_name=$(echo "$tag_message" | awk -F':' '{print $3}')
-          echo $ref_name
+          git clone https://github.com/Sanketika-Obsrv/obsrv-core.git
+          cd obsrv-core
+          tag_name=$(echo "${{ github.ref }}" | awk -F'/' '{print $3}')
+          echo "Tag name: $tag_name"
+          tag_message=$(echo "git tag -l --format='%(contents)' $tag_name")
+          echo "$tag_message" | awk -F':' '{print $3}'
+        shell: bash
 
 #  docker-build:
 #    needs: check-tag
