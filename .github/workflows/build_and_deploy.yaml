@@ -17,9 +17,10 @@ jobs:
           git clone https://github.com/Sanketika-Obsrv/obsrv-core.git
           cd obsrv-core
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-          git tag -l --format='%(contents:subject)' ${{ github.ref_name }}
-#          branch_name=$(echo "$tag_message" | awk -F':' '{print $3}')
-#          echo "Branch name: $branch_name"
+          tag_message=$(git tag -l --format='%(contents:subject)' ${{ github.ref_name }})
+          echo "Tag message: $tag_message"
+          branch_name=$(echo "$tag_message" | awk -F':' '{print $3}')
+          echo "Branch name: $branch_name"
         shell: bash
 
 #  docker-build:
