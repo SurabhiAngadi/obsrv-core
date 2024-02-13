@@ -18,7 +18,7 @@ jobs:
           cd obsrv-core
           tag_name=$(echo "${{ github.ref }}" | awk -F'/' '{print $3}')
           echo "Tag name: $tag_name"
-          tag_message=$(echo "git tag -l --format='%(contents)' $tag_name")
+          tag_message=$(git tag -l --format='%(contents)' $tag_name)
           echo "Tag message: $tag_message"
           ref_name=(echo "$tag_message" | awk -F':' '{print $3}')
           echo  "Ref name: $ref_name"
