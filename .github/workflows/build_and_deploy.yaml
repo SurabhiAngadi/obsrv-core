@@ -17,7 +17,7 @@ jobs:
           git clone https://github.com/Sanketika-Obsrv/obsrv-core.git
           cd obsrv-core
           tag_name=$(echo "${{ github.ref }}" | awk -F'/' '{print $3}')
-          echo "Tag name: $tag_name"
+          echo "Tag name: ${{ github.ref_name }}"
           tag_message=$(git tag -l --format='%(contents)' $tag_name)
           echo "Tag message: $tag_message"
           branch_name=$(echo "$tag_message" | awk -F':' '{print $3}')
